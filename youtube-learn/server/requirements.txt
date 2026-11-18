@@ -1,0 +1,8 @@
+# Works on Python 3.10+. (Python 3.11+ gets the newest yt-dlp and FastAPI.)
+anthropic>=2.10,<3
+openai>=3.54,<4
+youtube-transcript-api>=1.2.5,<2
+yt-dlp>=2025.10.22
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
+requests>=2.31
