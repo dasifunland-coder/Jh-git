@@ -1,7 +1,8 @@
+# Python 3.10 이상에서 설치돼요. (3.11 이상이면 yt-dlp·FastAPI 최신판이 설치돼요)
 anthropic>=2.10,<3
 openai>=3.54,<4
 youtube-transcript-api>=1.2.5,<2
-yt-dlp>=2026.10.26
-fastapi>=0.163,<1
-uvicorn>=0.54,<1
+yt-dlp>=2025.10.22
+fastapi>=0.115,<1
+uvicorn>=0.30,<1
 requests>=2.31
