@@ -1,0 +1,7 @@
+anthropic>=2.10,<3
+openai>=3.54,<4
+youtube-transcript-api>=1.2.5,<2
+yt-dlp>=2026.10.26
+fastapi>=0.163,<1
+uvicorn>=0.54,<1
+requests>=2.31

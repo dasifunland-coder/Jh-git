@@ -225,8 +225,9 @@ dialog h2{font-size:18px;margin-bottom:8px}
         <input class="input" id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
       </div>
       <div class="field">
-        <label class="lbl" for="transcript">스크립트 <span class="faint">(권장: 붙여넣으면 훨씬 정확해요)</span></label>
-        <details class="howto">
+        <label class="lbl" for="transcript">스크립트 <span class="faint" id="tsHint">(권장: 붙여넣으면 훨씬 정확해요)</span></label>
+        <p class="faint hide" id="serverNote" style="margin:-2px 0 8px"></p>
+        <details class="howto" id="howto">
           <summary>스크립트 가져오는 법</summary>
           <ol>
             <li>PC에서 유튜브 영상을 열고 설명란 아래 <b>스크립트 표시</b>를 누릅니다.</li>
@@ -288,6 +289,7 @@ dialog h2{font-size:18px;margin-bottom:8px}
         <li>학습 코스 구성</li>
         <li>퀴즈·카드 정리</li>
       </ul>
+      <p class="faint" id="stageMsg" style="margin:12px 0 0;min-height:1.5em"></p>
       <div style="margin-top:20px"><button class="btn sm" id="cancelBtn">취소</button></div>
     </div>
   </main>
@@ -359,7 +361,9 @@ dialog h2{font-size:18px;margin-bottom:8px}
 <script type="module">
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.4.0/+esm";
 const MODEL = "claude-opus-5-5";
-const LS = { key: "cliplearn.key", lib: "cliplearn.library", theme: "cliplearn.theme" };
+const LS = { key: "cliplearn.key", lib: "cliplearn.library", theme: "cliplearn.theme", token: "cliplearn.token" };
+// 서버 모드: server/app.py가 이 화면을 띄우면, 자막·음성 인식·Claude 호출을 서버가 맡는다
+let server = null; // { stt, needs_token, max_stt_minutes } | null
 
 /* ---------- 저장소 (localStorage는 막혀 있을 수 있음) ---------- */
 const store = {
@@ -413,14 +417,55 @@ for (const seg of $$(".seg")) {
 
 /* ---------- API 키 ---------- */
 const dlg = $("#settings");
+const credKey = () => (server ? LS.token : LS.key);
 function refreshKeyHint() {
+  if (server) { $("#keyHint").textContent = ""; return; }
   $("#keyHint").textContent = store.get(LS.key, "") ? "" : "API 키가 없으면 예시만 볼 수 있어요.";
 }
-$("#settingsBtn").onclick = () => { $("#keyInput").value = store.get(LS.key, ""); dlg.showModal(); };
+$("#settingsBtn").onclick = () => { $("#keyInput").value = store.get(credKey(), ""); dlg.showModal(); };
 $("#keyCancel").onclick = () => dlg.close();
-$("#keySave").onclick = () => { const v = $("#keyInput").value.trim(); if (v) store.set(LS.key, v); dlg.close(); refreshKeyHint(); };
-$("#keyClear").onclick = () => { store.del(LS.key); $("#keyInput").value = ""; refreshKeyHint(); };
+$("#keySave").onclick = () => { const v = $("#keyInput").value.trim(); if (v) store.set(credKey(), v); dlg.close(); refreshKeyHint(); };
+$("#keyClear").onclick = () => { store.del(credKey()); $("#keyInput").value = ""; refreshKeyHint(); };
 refreshKeyHint();
+
+async function detectServer() {
+  if (!location.protocol.startsWith("http")) return;
+  try {
+    const r = await fetch("api/health", { cache: "no-store" });
+    const h = r.ok ? await r.json() : null;
+    if (!h?.server) return;
+    server = h;
+  } catch { return; }
+  // 화면을 서버 모드로 바꾼다
+  $("#tsHint").textContent = "(선택: 비워 두면 서버가 자동으로 가져와요)";
+  const note = $("#serverNote");
+  note.textContent = server.stt
+    ? `유튜브 자막을 먼저 찾고, 자막이 없으면 음성 인식(${server.stt_model}, ${server.max_stt_minutes}분 이하 영상)으로 받아 적어요.`
+    : "유튜브 자막이 있는 영상만 자동으로 가져올 수 있어요. (서버에 음성 인식 키가 없음)";
+  note.classList.remove("hide");
+  $("#howto summary").textContent = "자막이 없고 음성 인식도 안 될 때: 스크립트 직접 넣기";
+  $("#transcript").placeholder = "비워 두세요. 직접 가진 스크립트가 있을 때만 붙여넣어요.";
+  $("#transcript").style.minHeight = "80px";
+  $("#settingsBtn").textContent = "접속 암호";
+  $("#settingsBtn").classList.toggle("hide", !server.needs_token);
+  $("#settings h2").textContent = "접속 암호";
+  $("#settings p").textContent = "이 서버는 접속 암호가 필요해요. 서버 관리자에게 받은 암호를 넣어 주세요. 이 브라우저에만 저장돼요.";
+  $("#keyInput").placeholder = "접속 암호";
+  $("#steps").replaceChildren(...["영상 정보 확인", "유튜브 자막 찾기", "음성 인식 (자막이 없을 때)", "내용 분석", "학습 코스 구성"].map((t) => el("li", { text: t })));
+  refreshKeyHint();
+}
+
+function serverHeaders() {
+  const h = { "Content-Type": "application/json" };
+  const t = store.get(LS.token, "");
+  if (t) h["X-App-Token"] = t;
+  return h;
+}
+async function serverError(r) {
+  if (r.status === 401) { dlg.showModal(); return "접속 암호가 필요해요."; }
+  try { const j = await r.json(); return typeof j.detail === "string" ? j.detail : "입력값을 확인해 주세요."; }
+  catch { return `서버 오류 (${r.status})`; }
+}
 
 /* ---------- 유튜브 ---------- */
 function parseVideoId(u) {
@@ -557,15 +602,17 @@ $("#analyzeBtn").onclick = async () => {
   const videoId = parseVideoId(url);
   if (!videoId && !transcript) return homeError("유튜브 링크나 스크립트 중 하나는 넣어 주세요.");
   if (url && !videoId) return homeError("유튜브 링크 형식이 아니에요. 예: https://www.youtube.com/watch?v=...");
-  if (!store.get(LS.key, "")) { dlg.showModal(); return; }
-  show("loading"); setStep(0);
+  if (!server && !store.get(LS.key, "")) { dlg.showModal(); return; }
+  if (server?.needs_token && !store.get(LS.token, "")) { dlg.showModal(); return; }
+  show("loading"); setStep(0); $("#stageMsg").textContent = "";
   try {
-    const data = await analyze({ url, transcript, level: prefs.level, minutes: prefs.minutes });
+    const input = { url, transcript, level: prefs.level, minutes: prefs.minutes };
+    const r = server ? await analyzeOnServer(input) : { data: await analyze(input), transcript, source: transcript ? "pasted" : "web" };
     const item = {
       id: (crypto.randomUUID?.() || String(Date.now())),
-      videoId, url, transcript, hasTranscript: !!transcript,
+      videoId, url, transcript: r.transcript, hasTranscript: r.source !== "web", source: r.source,
       level: prefs.level, minutes: Number(prefs.minutes),
-      createdAt: Date.now(), data, progress: {},
+      createdAt: Date.now(), data: r.data, progress: {},
     };
     saveItem(item);
     openItem(item);
@@ -576,6 +623,38 @@ $("#analyzeBtn").onclick = async () => {
   } finally { abortCtl = null; }
 };
 $("#cancelBtn").onclick = () => { abortCtl?.abort(); show("home"); };
+
+const STAGE_STEP = { meta: 0, captions: 1, stt: 2, analyze: 3 };
+async function analyzeOnServer(input) {
+  abortCtl = new AbortController();
+  const res = await fetch("api/analyze", {
+    method: "POST", headers: serverHeaders(), signal: abortCtl.signal,
+    body: JSON.stringify({ ...input, minutes: Number(input.minutes) }),
+  });
+  if (!res.ok) throw new Error(await serverError(res));
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let buf = "", result = null;
+  const handle = (ev) => {
+    if (ev.type === "stage") { setStep(STAGE_STEP[ev.stage] ?? 0); $("#stageMsg").textContent = ev.message; }
+    else if (ev.type === "progress" && ev.chars > 4000) setStep(4);
+    else if (ev.type === "error") throw new Error(ev.message);
+    else if (ev.type === "result") result = ev;
+  };
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    let i;
+    while ((i = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
+      if (line) handle(JSON.parse(line));
+    }
+  }
+  if (buf.trim()) handle(JSON.parse(buf));
+  if (!result) throw new Error("서버 응답이 끊겼어요. 다시 시도해 주세요.");
+  return result;
+}
 
 function friendlyError(err) {
   const s = err?.status;
@@ -629,6 +708,8 @@ function openItem(item) {
     el("span", { class: "badge", text: `내 수준 ${item.level}` }),
   );
   if (!item.hasTranscript) b.append(el("span", { class: "badge warn", text: "스크립트 없이 분석됨" }));
+  if (item.source === "captions") b.append(el("span", { class: "badge", text: "유튜브 자막으로 분석" }));
+  if (item.source === "stt") b.append(el("span", { class: "badge warn", text: "음성 인식으로 분석" }));
   if (item.demo) b.append(el("span", { class: "badge warn", text: "예시" }));
 
   renderSummary(d); renderConcepts(d); renderPath(); renderFlashcards(true); renderQuiz(); renderTutor(); renderRelated(d);
@@ -783,7 +864,7 @@ function renderTutor() {
   for (const m of chatHistory) chat.append(el("div", { class: "msg " + (m.role === "user" ? "u" : "a"), text: m.content }));
   const sugg = ["가장 중요한 내용 3가지만 다시 설명해 줘", "초등학생에게 설명하듯 말해 줘", "이걸 실생활에 어떻게 써먹을 수 있어?", `${cur.data.concepts[0]?.term || "핵심 개념"}을(를) 예시로 설명해 줘`];
   $("#chips").replaceChildren(...sugg.map((s) => el("button", { class: "chip", type: "button", text: s, onclick: () => ask(s) })));
-  $("#tutorNote").textContent = cur.demo ? "예시 모드에서는 API 키를 저장하면 튜터를 쓸 수 있어요." : "";
+  $("#tutorNote").textContent = cur.demo && !server ? "예시 모드에서는 API 키를 저장하면 튜터를 쓸 수 있어요." : "";
 }
 $("#askForm").onsubmit = (e) => { e.preventDefault(); const v = $("#askInput").value.trim(); if (v) ask(v); };
 let asking = false;
@@ -797,8 +878,26 @@ async function ask(q) {
   asking = true; $("#askBtn").disabled = true;
   chatHistory.push({ role: "user", content: q });
   try {
-    const { client } = await getClient();
     const d = cur.data;
+    if (server) {
+      const res = await fetch("api/ask", {
+        method: "POST", headers: serverHeaders(),
+        body: JSON.stringify({
+          title: d.title, level: cur.level, question: q,
+          transcript: cur.transcript || JSON.stringify({ summary: d.summary, chapters: d.chapters, concepts: d.concepts, lessons: d.lesson_path }),
+          history: chatHistory.slice(0, -1).slice(-20),
+        }),
+      });
+      if (!res.ok) throw new Error(await serverError(res));
+      const reader = res.body.getReader(), dec = new TextDecoder();
+      let acc = "";
+      for (;;) { const { value, done } = await reader.read(); if (done) break; acc += dec.decode(value, { stream: true }); out.textContent = acc; }
+      out.textContent = acc || "답변을 받지 못했어요.";
+      chatHistory.push({ role: "assistant", content: acc });
+      if (!cur.demo) { cur.chat = chatHistory.slice(-20); persist(); }
+      return;
+    }
+    const { client } = await getClient();
     const context = cur.transcript
       ? `<transcript>\n${cur.transcript}\n</transcript>`
       : `<analysis>\n${JSON.stringify({ title: d.title, summary: d.summary, chapters: d.chapters, concepts: d.concepts })}\n</analysis>`;
@@ -898,6 +997,7 @@ const DEMO = {
 $("#demoBtn").onclick = () => { const d = structuredClone(DEMO); d.createdAt = Date.now(); openItem(d); };
 
 renderLibrary();
+detectServer();
 </script>
 </body>
 </html>
