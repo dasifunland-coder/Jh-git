@@ -118,6 +118,9 @@ details.howto ol{margin:8px 0 0;padding-left:20px;color:var(--ink-2);font-size:1
 .steps li::before{content:"○ ";}
 .steps li.on::before{content:"● ";color:var(--accent)}
 .steps li.done::before{content:"✓ "}
+.steps li.skip{color:var(--ink-3);text-decoration:line-through}
+.steps li.skip::before{content:"– "}
+.steps li.skip::after{content:" (건너뜀)";font-size:12px}
 
 /* 결과 */
 .result-head{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;align-items:start}
@@ -619,8 +622,12 @@ async function analyze(input) {
 }
 
 /* ---------- 진행 표시 ---------- */
+let seenSteps = null; // 서버 모드: 실제로 거친 단계만 체크하고, 건너뛴 단계는 '건너뜀'으로 표시
 function setStep(i) {
-  $$("#steps li").forEach((li, j) => { li.className = j < i ? "done" : j === i ? "on" : ""; });
+  seenSteps?.add(i);
+  $$("#steps li").forEach((li, j) => {
+    li.className = j < i ? (seenSteps && !seenSteps.has(j) ? "skip" : "done") : j === i ? "on" : "";
+  });
 }
 function stepFromChars(n) { setStep(n < 1 ? 1 : n < 4000 ? 2 : 3); }
 
@@ -658,6 +665,7 @@ $("#cancelBtn").onclick = () => { abortCtl?.abort(); show("home"); };
 const STAGE_STEP = { meta: 0, captions: 1, stt: 2, analyze: 3 };
 async function analyzeOnServer(input) {
   abortCtl = new AbortController();
+  seenSteps = new Set([0]);
   const res = await fetch("api/analyze", {
     method: "POST", headers: serverHeaders(), signal: abortCtl.signal,
     body: JSON.stringify({ ...input, minutes: Number(input.minutes) }),
