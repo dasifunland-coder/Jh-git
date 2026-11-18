@@ -4,7 +4,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -r
 WORKDIR /app
 COPY server/requirements.txt server/requirements.txt
 RUN pip install --no-cache-dir -r server/requirements.txt
-COPY index.html index.html
+COPY index.html manifest.webmanifest sw.js ./
+COPY icons icons
 COPY server/*.py server/
 WORKDIR /app/server
 ENV HOST=0.0.0.0 PORT=8000

@@ -17,6 +17,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import course
@@ -25,7 +26,8 @@ from config import load_settings
 
 log = logging.getLogger("cliplearn")
 settings = load_settings()
-APP_HTML = Path(__file__).resolve().parent.parent / "index.html"
+WEB_ROOT = Path(__file__).resolve().parent.parent
+APP_HTML = WEB_ROOT / "index.html"
 MAX_TRANSCRIPT_CHARS = 600_000
 
 app = FastAPI(title="ClipLearn", docs_url=None, redoc_url=None)
@@ -45,7 +47,21 @@ def check_token(x_app_token: str = Header(default="")) -> None:
 
 @app.get("/")
 def index():
-    return FileResponse(APP_HTML, media_type="text/html; charset=utf-8")
+    return FileResponse(APP_HTML, media_type="text/html; charset=utf-8", headers={"Cache-Control": "no-cache"})
+
+
+# 휴대폰 앱(PWA) 설치에 필요한 파일
+@app.get("/manifest.webmanifest")
+def manifest():
+    return FileResponse(WEB_ROOT / "manifest.webmanifest", media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    return FileResponse(WEB_ROOT / "sw.js", media_type="text/javascript", headers={"Cache-Control": "no-cache"})
+
+
+app.mount("/icons", StaticFiles(directory=WEB_ROOT / "icons"), name="icons")
 
 
 @app.get("/api/health")

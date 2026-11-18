@@ -289,6 +289,17 @@ def test_index_served(client):
     assert r.status_code == 200 and "클립러닝" in r.text
 
 
+def test_pwa_files_served(client):
+    m = client.get("/manifest.webmanifest")
+    assert m.status_code == 200 and m.headers["content-type"].startswith("application/manifest+json")
+    man = m.json()
+    assert man["display"] == "standalone" and man["share_target"]["params"]["text"] == "text"
+    for icon in man["icons"]:
+        assert client.get("/" + icon["src"]).status_code == 200
+    sw = client.get("/sw.js")
+    assert sw.status_code == 200 and "javascript" in sw.headers["content-type"]
+
+
 def test_course_schema_is_strict():
     def walk(s):
         if s.get("type") == "object":

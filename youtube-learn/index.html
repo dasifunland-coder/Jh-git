@@ -2,8 +2,17 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>클립러닝</title>
+<meta name="description" content="유튜브 영상을 요약, 레슨, 플래시카드, 퀴즈로 바꿔 빠르게 학습해요.">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="theme-color" content="#1d1c19">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="클립러닝">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
@@ -44,8 +53,15 @@ a{color:var(--accent)}
 .wrap{max-width:980px;margin:0 auto;padding:16px 16px 64px}
 header.top{display:flex;align-items:center;gap:12px;padding:6px 0 18px}
 .logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:-.02em;cursor:pointer;background:none;border:0;padding:0}
-.logo-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
-.logo-mark svg{width:14px;height:14px;fill:var(--accent-ink)}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:#1d1c19;display:grid;place-items:center;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12)}
+.logo-mark svg{width:20px;height:20px}
+.wrap{padding-top:max(16px,env(safe-area-inset-top,0px));padding-bottom:max(64px,env(safe-area-inset-bottom,0px))}
+.url-row{display:flex;gap:8px}
+.url-row .input{flex:1;min-width:0}
+.install{display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:12px;background:var(--surface);border:1px solid var(--line);margin-bottom:14px;font-size:14px}
+.install b{display:block;font-size:15px}
+.install .x{margin-left:auto;flex:none}
+.shared{background:var(--accent-soft);color:var(--ink);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:14px}
 .top-actions{margin-left:auto;display:flex;gap:6px}
 .btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:500;line-height:1.2;display:inline-flex;align-items:center;gap:6px}
 .btn:hover{background:var(--surface-2)}
@@ -204,7 +220,7 @@ dialog h2{font-size:18px;margin-bottom:8px}
 <div class="wrap">
   <header class="top">
     <button class="logo" id="goHome" aria-label="처음 화면">
-      <span class="logo-mark"><svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg></span>
+      <span class="logo-mark"><svg viewBox="100 90 312 340"><path d="M150 118 L292 200 L150 282 Z" fill="#ff6a52" stroke="#ff6a52" stroke-width="26" stroke-linejoin="round"/><rect x="132" y="326" width="248" height="26" rx="13" fill="#f1efe9"/><rect x="132" y="378" width="176" height="26" rx="13" fill="#f1efe9" opacity=".6"/></svg></span>
       클립러닝
     </button>
     <div class="top-actions">
@@ -219,10 +235,20 @@ dialog h2{font-size:18px;margin-bottom:8px}
       <h1>유튜브 한 편을 15분 학습 코스로</h1>
       <p>영상 내용을 분석해서 요약, 핵심 개념, 단계별 레슨, 플래시카드, 퀴즈, 다음에 공부할 주제까지 만들어 드려요.</p>
     </section>
+    <div class="install hide" id="installBar">
+      <img src="icons/icon-192.png" alt="" width="40" height="40" style="border-radius:10px">
+      <div><b>휴대폰에 앱으로 설치</b><span class="muted" id="installText">홈 화면에서 바로 열고, 유튜브에서 공유로 보낼 수 있어요.</span></div>
+      <button class="btn sm primary hide" id="installBtn">설치</button>
+      <button class="btn sm ghost x" id="installClose" aria-label="닫기">✕</button>
+    </div>
+    <div class="shared hide" id="sharedNote"></div>
     <div class="card">
       <div class="field">
         <label class="lbl" for="url">유튜브 링크</label>
-        <input class="input" id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+        <div class="url-row">
+          <input class="input" id="url" type="url" inputmode="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+          <button class="btn hide" id="pasteBtn" type="button">붙여넣기</button>
+        </div>
       </div>
       <div class="field">
         <label class="lbl" for="transcript">스크립트 <span class="faint" id="tsHint">(권장: 붙여넣으면 훨씬 정확해요)</span></label>
@@ -446,6 +472,8 @@ async function detectServer() {
   $("#howto summary").textContent = "자막이 없고 음성 인식도 안 될 때: 스크립트 직접 넣기";
   $("#transcript").placeholder = "비워 두세요. 직접 가진 스크립트가 있을 때만 붙여넣어요.";
   $("#transcript").style.minHeight = "80px";
+  $("#transcript").style.marginTop = "10px";
+  $("#howto").append($("#transcript"));   // 필요할 때만 펼쳐서 쓰도록 접어 둔다
   $("#settingsBtn").textContent = "접속 암호";
   $("#settingsBtn").classList.toggle("hide", !server.needs_token);
   $("#settings h2").textContent = "접속 암호";
@@ -996,8 +1024,81 @@ const DEMO = {
 };
 $("#demoBtn").onclick = () => { const d = structuredClone(DEMO); d.createdAt = Date.now(); openItem(d); };
 
-renderLibrary();
-detectServer();
+/* ---------- 휴대폰 앱(PWA) ---------- */
+const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+
+function setupInstall() {
+  if (isStandalone() || store.get("cliplearn.installClosed", false)) return;
+  const bar = $("#installBar");
+  $("#installClose").onclick = () => { bar.classList.add("hide"); store.set("cliplearn.installClosed", true); };
+  let deferred = null;
+  window.addEventListener("beforeinstallprompt", (e) => {   // 안드로이드 크롬·엣지
+    e.preventDefault(); deferred = e;
+    $("#installBtn").classList.remove("hide"); bar.classList.remove("hide");
+  });
+  $("#installBtn").onclick = async () => {
+    if (!deferred) return;
+    deferred.prompt();
+    await deferred.userChoice.catch(() => {});
+    deferred = null; bar.classList.add("hide");
+  };
+  window.addEventListener("appinstalled", () => bar.classList.add("hide"));
+  if (isIOS && location.protocol === "https:") {             // 아이폰 사파리는 설치 버튼이 없어 방법을 안내
+    $("#installText").textContent = "사파리 아래쪽 공유 버튼(□↑) → '홈 화면에 추가'를 누르세요.";
+    bar.classList.remove("hide");
+  }
+}
+
+function setupPaste() {
+  if (!navigator.clipboard?.readText) return;
+  const btn = $("#pasteBtn");
+  btn.classList.remove("hide");
+  btn.onclick = async () => {
+    try {
+      const t = await navigator.clipboard.readText();
+      const link = findYouTubeLink(t) || t.trim();
+      $("#url").value = link; homeError("");
+    } catch { homeError("클립보드를 읽지 못했어요. 링크 칸을 길게 눌러 붙여넣어 주세요."); }
+  };
+}
+
+function findYouTubeLink(text) {
+  const m = String(text || "").match(/https?:\/\/(?:www\.|m\.)?(?:youtube\.com|youtu\.be|youtube-nocookie\.com)\/[^\s"'<>]+/i);
+  return m ? m[0] : null;
+}
+
+// 유튜브 앱에서 '공유 → 클립러닝'으로 들어온 링크를 받는다 (manifest의 share_target)
+function takeSharedLink() {
+  const q = new URLSearchParams(location.search);
+  const raw = [q.get("url"), q.get("text"), q.get("title")].filter(Boolean).join(" ");
+  if (q.has("url") || q.has("text") || q.has("title") || q.has("source")) history.replaceState(null, "", location.pathname);
+  return raw ? findYouTubeLink(raw) : null;
+}
+
+if ("serviceWorker" in navigator && location.protocol.startsWith("http")) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+
+(async () => {
+  renderLibrary();
+  setupInstall();
+  setupPaste();
+  const shared = takeSharedLink();
+  await detectServer();
+  if (!shared) return;
+  $("#url").value = shared;
+  const ready = server ? (!server.needs_token || store.get(LS.token, "")) : store.get(LS.key, "");
+  const note = $("#sharedNote");
+  if (ready) {
+    note.textContent = "공유받은 영상을 바로 분석할게요.";
+    note.classList.remove("hide");
+    $("#analyzeBtn").click();
+  } else {
+    note.textContent = "공유받은 링크를 넣어 두었어요. 아래 '분석 시작'을 눌러 주세요.";
+    note.classList.remove("hide");
+  }
+})();
 </script>
 </body>
 </html>
