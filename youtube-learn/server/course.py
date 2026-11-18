@@ -58,9 +58,16 @@ class CourseError(Exception):
     """사용자에게 보여 줄 한국어 메시지."""
 
 
+NO_KEY_MESSAGE = (
+    "서버에 Claude API 키가 없어요. server 폴더의 .env 파일에서 ANTHROPIC_API_KEY= 뒤에 키를 넣고 저장한 뒤, "
+    "서버를 껐다가(Ctrl+C) 다시 켜 주세요."
+)
+
+
 def make_client(settings: Settings) -> AsyncAnthropic:
-    # 키가 없으면 SDK 기본 인증 순서(환경 변수, ant 로그인 프로필 등)를 따른다
-    return AsyncAnthropic(api_key=settings.anthropic_api_key) if settings.anthropic_api_key else AsyncAnthropic()
+    if not settings.anthropic_api_key:
+        raise CourseError(NO_KEY_MESSAGE)
+    return AsyncAnthropic(api_key=settings.anthropic_api_key)
 
 
 def course_prompt(*, transcript: str, level: str, minutes: int, title: str = "", channel: str = "",
@@ -110,7 +117,9 @@ async def build_course(settings: Settings, prompt: str, on_progress: Callable[[i
     except anthropic.APIStatusError as e:
         raise CourseError("Claude 서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.") from e
     except anthropic.APIConnectionError as e:
-        raise CourseError("Claude API에 연결하지 못했어요.") from e
+        raise CourseError("Claude API에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.") from e
+    except anthropic.AnthropicError as e:
+        raise CourseError(f"Claude 호출 중 오류가 났어요: {e}") from e
 
     if msg.stop_reason == "refusal":
         raise CourseError("이 영상 내용은 분석할 수 없다는 응답을 받았어요.")
@@ -137,7 +146,11 @@ def tutor_system(*, title: str, transcript: str, level: str) -> list[dict]:
 
 
 async def tutor_stream(settings: Settings, *, system: list[dict], messages: list[dict]) -> AsyncIterator[str]:
-    client = make_client(settings)
+    try:
+        client = make_client(settings)
+    except CourseError as e:
+        yield str(e)
+        return
     try:
         async with client.beta.messages.stream(
             model=settings.claude_model,

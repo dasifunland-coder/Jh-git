@@ -260,6 +260,24 @@ def test_analyze_error_event(client, monkeypatch):
     assert ev[-1] == {"type": "error", "message": "자막이 없어요"}
 
 
+def test_missing_claude_key_is_explained(client, monkeypatch):
+    monkeypatch.setattr(app_mod, "settings", settings(anthropic_api_key=""))
+    r = client.post("/api/analyze", json={"url": "dQw4w9WgXcQ"})
+    assert r.status_code == 400 and "ANTHROPIC_API_KEY" in r.json()["detail"]
+    assert client.get("/api/health").json()["claude_key"] is False
+    with pytest.raises(course.CourseError, match="ANTHROPIC_API_KEY"):
+        course.make_client(settings(anthropic_api_key=""))
+
+
+def test_unexpected_error_names_the_cause(client, monkeypatch):
+    async def boom(vid, s, progress=None):
+        raise ValueError("뭔가 이상함")
+
+    monkeypatch.setattr(tr, "get_transcript", boom)
+    msg = events(client.post("/api/analyze", json={"url": "dQw4w9WgXcQ"}))[-1]["message"]
+    assert "ValueError" in msg and "뭔가 이상함" in msg
+
+
 def test_token_required(client, monkeypatch):
     monkeypatch.setattr(app_mod, "settings", settings(app_token="secret"))
     assert client.post("/api/analyze", json={"url": "dQw4w9WgXcQ"}).status_code == 401

@@ -73,7 +73,14 @@ def health():
         "stt_model": settings.stt_model if settings.openai_api_key else None,
         "max_stt_minutes": settings.max_stt_minutes,
         "needs_token": bool(settings.app_token),
+        "claude_key": bool(settings.anthropic_api_key),
     }
+
+
+if not settings.anthropic_api_key:
+    print("\n[경고] ANTHROPIC_API_KEY가 비어 있어요. server 폴더의 .env 파일에 Claude API 키를 넣고 서버를 다시 켜 주세요.\n", flush=True)
+if not settings.openai_api_key:
+    print("[안내] OPENAI_API_KEY가 없어서 자막 있는 영상만 분석할 수 있어요.", flush=True)
 
 
 class AnalyzeIn(BaseModel):
@@ -95,6 +102,8 @@ async def analyze(body: AnalyzeIn):
         raise HTTPException(400, "유튜브 링크 형식이 아니에요.")
     if not video_id and not pasted:
         raise HTTPException(400, "유튜브 링크나 스크립트 중 하나는 넣어 주세요.")
+    if not settings.anthropic_api_key:
+        raise HTTPException(400, course.NO_KEY_MESSAGE)
 
     queue: asyncio.Queue[bytes | None] = asyncio.Queue()
 
@@ -132,9 +141,12 @@ async def analyze(body: AnalyzeIn):
             }))
         except (tr.TranscriptError, course.CourseError) as e:
             await queue.put(_line({"type": "error", "message": str(e)}))
-        except Exception:
+        except Exception as e:
             log.exception("analyze failed")
-            await queue.put(_line({"type": "error", "message": "서버에서 알 수 없는 오류가 났어요."}))
+            await queue.put(_line({"type": "error", "message": (
+                f"서버에서 예상하지 못한 오류가 났어요 ({type(e).__name__}: {str(e)[:200]}). "
+                "서버 창(PowerShell)의 빨간 글씨를 캡처해 보내 주시면 원인을 찾을 수 있어요."
+            )}))
         finally:
             await queue.put(None)
 

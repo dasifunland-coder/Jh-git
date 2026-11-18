@@ -168,7 +168,12 @@ def fetch_captions(video_id: str, settings: Settings) -> tuple[str, str] | None:
         return (1 if t.is_generated else 0, lang)
 
     best = sorted(transcripts, key=rank)[0]
-    fetched = best.fetch()
+    try:
+        fetched = best.fetch()
+    except requests.RequestException as e:
+        raise TranscriptError("서버가 유튜브에 연결하지 못했어요. 인터넷 연결을 확인해 주세요.") from e
+    except CouldNotRetrieveTranscript:
+        return None  # 자막 목록은 있지만 내려받기가 막힘: 음성 인식으로 넘어간다
     pieces = [(s.start, s.text) for s in fetched]
     text = join_lines(pieces)
     return (text, best.language_code) if text.strip() else None
