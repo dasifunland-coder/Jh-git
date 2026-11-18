@@ -21,6 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 import course
+import obsidian
 import transcript as tr
 from config import load_settings
 
@@ -74,6 +75,8 @@ def health():
         "max_stt_minutes": settings.max_stt_minutes,
         "needs_token": bool(settings.app_token),
         "claude_key": bool(settings.anthropic_api_key),
+        "obsidian": bool(settings.obsidian_vault),
+        "usd_krw": settings.usd_krw,
     }
 
 
@@ -133,9 +136,9 @@ async def analyze(body: AnalyzeIn):
             async def on_progress(chars: int):
                 await queue.put(_line({"type": "progress", "chars": chars}))
 
-            data = await course.build_course(settings, prompt, on_progress)
+            data, cost = await course.build_course(settings, prompt, on_progress)
             await queue.put(_line({
-                "type": "result", "data": data, "videoId": video_id, "source": source,
+                "type": "result", "data": data, "cost": cost, "videoId": video_id, "source": source,
                 "transcript": text, "notes": notes,
                 "meta": {"title": meta.title, "channel": meta.channel, "duration": meta.duration},
             }))
@@ -160,6 +163,24 @@ async def analyze(body: AnalyzeIn):
                 task.cancel()
 
     return StreamingResponse(stream(), media_type="application/x-ndjson")
+
+
+class NoteIn(BaseModel):
+    title: str = Field(min_length=1, max_length=300)
+    markdown: str = Field(min_length=1, max_length=200_000)
+    source: str = Field(default="", max_length=300)
+
+
+@app.post("/api/obsidian", dependencies=[Depends(check_token)])
+def save_to_obsidian(body: NoteIn):
+    try:
+        saved = obsidian.write_note(settings, title=body.title, markdown=body.markdown, source=body.source)
+    except obsidian.ObsidianError as e:
+        raise HTTPException(400, str(e)) from e
+    except OSError as e:
+        raise HTTPException(500, f"노트 파일을 쓰지 못했어요: {e}") from e
+    print(f"[Obsidian] 노트 저장: {saved['path']}", flush=True)
+    return saved
 
 
 class ChatMsg(BaseModel):

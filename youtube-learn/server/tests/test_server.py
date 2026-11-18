@@ -201,7 +201,7 @@ async def test_transcribe_chunks_offsets(monkeypatch, tmp_path):
 
 # ------------------------------------------------------------- HTTP 엔드포인트
 
-COURSE = {"title": "복리", "one_liner": "x", "difficulty": "입문", "estimated_minutes": 15, "summary": [],
+COURSE = {"title": "복리", "one_liner": "x", "difficulty": "입문", "estimated_minutes": 15, "summary": [], "nuggets": [],
           "chapters": [], "concepts": [], "lesson_path": [], "flashcards": [], "quiz": [], "related": [], "caveats": []}
 
 
@@ -216,7 +216,7 @@ def client(monkeypatch):
     async def fake_build(s, prompt, on_progress=None):
         seen["prompt"] = prompt
         await on_progress(10)
-        return COURSE
+        return COURSE, {"usd": 0.12, "input": 1, "output": 2}
 
     monkeypatch.setattr(tr, "get_transcript", fake_get)
     monkeypatch.setattr(tr, "fetch_meta", lambda vid, s: tr.VideoMeta(vid, title="메타 제목"))
@@ -236,6 +236,7 @@ def test_analyze_from_url(client):
     assert [e["type"] for e in ev] == ["stage", "stage", "progress", "result"]
     res = ev[-1]
     assert res["data"]["title"] == "복리" and res["source"] == "captions" and res["videoId"] == "dQw4w9WgXcQ"
+    assert res["cost"]["usd"] == 0.12
     assert "학습자 수준: 중급" in client.seen["prompt"] and "영상 제목: 영상" in client.seen["prompt"]
 
 
@@ -327,3 +328,95 @@ def test_course_schema_is_strict():
         if s.get("type") == "array":
             walk(s["items"])
     walk(course.COURSE_SCHEMA)
+
+
+# ------------------------------------------------------------- 비용
+
+def test_usage_cost_opus():
+    u = SimpleNamespace(input_tokens=10_000, output_tokens=12_000, cache_creation_input_tokens=0, cache_read_input_tokens=0)
+    c = course.usage_cost("claude-opus-5-5", u, usd_krw=1400)
+    assert c["usd"] == round((10_000 * 4 + 12_000 * 20) / 1e6, 4) == 0.28
+    assert c["krw"] == 392
+    assert "약 $0.280" in course.cost_line("학습 코스 생성", c) and "392원" in course.cost_line("x", c)
+
+
+def test_usage_cost_cache_and_unknown_model():
+    u = SimpleNamespace(input_tokens=100, output_tokens=200, cache_creation_input_tokens=1_000_000, cache_read_input_tokens=1_000_000)
+    assert course.usage_cost("claude-opus-5-5", u)["usd"] == round(5.0 + 0.2 + (100 * 4 + 200 * 20) / 1e6, 4)
+    unknown = course.usage_cost("claude-someday-9", u)
+    assert unknown["usd"] is None and "금액은 계산하지 않음" in course.cost_line("x", unknown)
+
+
+# ------------------------------------------------------------- Obsidian
+
+import obsidian  # noqa: E402
+
+
+def test_safe_name():
+    assert obsidian.safe_name('복리: 왜 "일찍"? / 시작 #1 [요약]') == "복리 왜 일찍 시작 1 요약"
+    assert obsidian.safe_name("...") == "클립러닝 노트"
+    assert len(obsidian.safe_name("가" * 300)) == 80
+
+
+def test_write_note_overwrites_same_video_only(tmp_path):
+    s = settings(obsidian_vault=str(tmp_path), obsidian_folder="클립러닝")
+    a = obsidian.write_note(s, title="복리", markdown="---\nsource: https://youtu.be/A\n---\n첫판", source="https://youtu.be/A")
+    assert a == {"path": "클립러닝/복리.md", "vault": tmp_path.name}
+    obsidian.write_note(s, title="복리", markdown="---\nsource: https://youtu.be/A\n---\n둘째판", source="https://youtu.be/A")
+    assert (tmp_path / "클립러닝/복리.md").read_text(encoding="utf-8").endswith("둘째판")
+    b = obsidian.write_note(s, title="복리", markdown="---\nsource: https://youtu.be/B\n---\n다른 영상", source="https://youtu.be/B")
+    assert b["path"] == "클립러닝/복리 (2).md"
+
+
+def test_write_note_stays_inside_vault(tmp_path):
+    s = settings(obsidian_vault=str(tmp_path / "vault"), obsidian_folder="../밖")
+    (tmp_path / "vault").mkdir()
+    r = obsidian.write_note(s, title="../../탈출", markdown="x", source="")
+    assert r["path"].startswith("밖/") and (tmp_path / "vault" / r["path"]).exists()
+    assert not any(p.name.endswith(".md") for p in tmp_path.iterdir())
+
+
+def test_write_note_errors(tmp_path):
+    with pytest.raises(obsidian.ObsidianError, match="OBSIDIAN_VAULT"):
+        obsidian.write_note(settings(), title="a", markdown="b", source="")
+    with pytest.raises(obsidian.ObsidianError, match="찾을 수 없어요"):
+        obsidian.write_note(settings(obsidian_vault=str(tmp_path / "없음")), title="a", markdown="b", source="")
+
+
+def test_obsidian_endpoint(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(app_mod, "settings", settings(obsidian_vault=str(tmp_path)))
+    assert client.get("/api/health").json()["obsidian"] is True
+    r = client.post("/api/obsidian", json={"title": "복리", "markdown": "# 복리", "source": "https://youtu.be/A"})
+    assert r.status_code == 200 and r.json()["path"] == "클립러닝/복리.md"
+    monkeypatch.setattr(app_mod, "settings", settings())
+    r = client.post("/api/obsidian", json={"title": "복리", "markdown": "# 복리"})
+    assert r.status_code == 400 and "OBSIDIAN_VAULT" in r.json()["detail"]
+
+
+async def test_tutor_stream_appends_cost(monkeypatch):
+    class FakeStream:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *a):
+            return False
+
+        @property
+        def text_stream(self):
+            async def gen():
+                for t in ["답", "변"]:
+                    yield t
+            return gen()
+
+        async def get_final_message(self):
+            return SimpleNamespace(stop_reason="end_turn", usage=SimpleNamespace(
+                input_tokens=1000, output_tokens=100, cache_creation_input_tokens=0, cache_read_input_tokens=0))
+
+    class FakeClient:
+        def __init__(self, api_key):
+            self.beta = SimpleNamespace(messages=SimpleNamespace(stream=lambda **kw: FakeStream()))
+
+    monkeypatch.setattr(course, "AsyncAnthropic", FakeClient)
+    out = [t async for t in course.tutor_stream(settings(), system=[], messages=[])]
+    assert out[:2] == ["답", "변"] and out[-1].startswith(course.COST_MARK)
+    assert json.loads(out[-1][1:])["usd"] == round((1000 * 4 + 100 * 20) / 1e6, 4)

@@ -29,6 +29,9 @@ class Settings:
     allowed_origins: list[str]
     yt_proxy_url: str
     ytdlp_cookies: str
+    usd_krw: float = 0.0
+    obsidian_vault: str = ""
+    obsidian_folder: str = "클립러닝"
 
 
 def load_settings() -> Settings:
@@ -45,4 +48,7 @@ def load_settings() -> Settings:
         allowed_origins=[o.strip() for o in env("ALLOWED_ORIGINS", "").split(",") if o.strip()],
         yt_proxy_url=env("YT_PROXY_URL", ""),
         ytdlp_cookies=env("YTDLP_COOKIES", ""),
+        usd_krw=float(env("USD_KRW", "1400") or 0),
+        obsidian_vault=env("OBSIDIAN_VAULT", ""),
+        obsidian_folder=env("OBSIDIAN_FOLDER", "클립러닝"),
     )

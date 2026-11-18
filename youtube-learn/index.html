@@ -152,6 +152,8 @@ ul.points li{margin:6px 0}
 .grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
 .concept h3{font-size:16px;margin-bottom:6px}
 .concept .ana{margin-top:8px;font-size:14px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:8px 10px}
+.nuggets li .time{margin-left:6px;font-size:12px;cursor:pointer;border:0;display:inline}
+#noteMsg a{font-weight:500}
 .caveat{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:14px 16px;margin-top:18px}
 .caveat b{color:var(--warn)}
 
@@ -333,7 +335,11 @@ dialog h2{font-size:18px;margin-bottom:8px}
         <p class="oneliner muted" id="rOne"></p>
         <div class="actions" style="margin-top:14px">
           <button class="btn sm" id="newBtn">다른 영상 분석</button>
+          <button class="btn sm" id="obsBtn">Obsidian에 저장</button>
+          <button class="btn sm ghost" id="mdCopyBtn">노트 복사</button>
         </div>
+        <p class="faint hide" id="noteMsg" style="margin:8px 0 0"></p>
+        <p class="faint hide" id="costLine" style="margin:6px 0 0"></p>
       </div>
     </div>
 
@@ -349,6 +355,7 @@ dialog h2{font-size:18px;margin-bottom:8px}
 
     <section class="panel on" data-panel="sum">
       <div class="card"><h2 style="font-size:16px;margin-bottom:8px">핵심 요약</h2><ul class="points" id="sumList"></ul></div>
+      <div class="card hide" id="nugCard" style="margin-top:12px"><h2 style="font-size:16px;margin-bottom:8px">깨알 정보</h2><ul class="points nuggets" id="nugList"></ul></div>
       <div class="section-title"><h2>챕터</h2><span class="faint" id="chapHint"></span></div>
       <div class="chapters" id="chapList"></div>
       <div id="caveats"></div>
@@ -390,6 +397,53 @@ dialog h2{font-size:18px;margin-bottom:8px}
 <script type="module">
 const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.4.0/+esm";
 const MODEL = "claude-opus-5-5";
+const COST_MARK = "\x1e"; // 서버 튜터 답변 끝에 붙는 비용 정보 구분 문자
+
+/* ---------- 비용 ---------- */
+// 100만 토큰당 달러 (입력, 출력, 캐시 쓰기, 캐시 읽기). 2026-11 기준 공개 가격
+const PRICES = {
+  "claude-opus-5-5": [4, 20, 5, 0.2], "claude-sonnet-5-5": [2, 10, 2.5, 0.1],
+  "claude-haiku-5-5": [0.1, 0.5, 0.125, 0.01], "claude-fable-5-2": [8, 40, 10, 0.2],
+};
+const usdKrw = () => server?.usd_krw ?? 1400;
+function costFromUsage(model, u = {}) {
+  const c = { model, input: u.input_tokens || 0, output: u.output_tokens || 0,
+    cache_write: u.cache_creation_input_tokens || 0, cache_read: u.cache_read_input_tokens || 0, usd: null };
+  const p = PRICES[model];
+  if (p) c.usd = (c.input * p[0] + c.output * p[1] + c.cache_write * p[2] + c.cache_read * p[3]) / 1e6;
+  return c;
+}
+function sumCosts(list) {
+  const t = { input: 0, output: 0, cache_write: 0, cache_read: 0, usd: 0 };
+  for (const c of list.filter(Boolean)) {
+    for (const k of ["input", "output", "cache_write", "cache_read"]) t[k] += c[k] || 0;
+    t.usd = t.usd == null || c.usd == null ? null : t.usd + c.usd;
+  }
+  return t;
+}
+function fmtUsd(usd) {
+  if (usd == null) return "금액 알 수 없음";
+  const won = usdKrw() ? ` (약 ${Math.round(usd * usdKrw()).toLocaleString("ko-KR")}원)` : "";
+  return `약 $${usd < 0.01 ? usd.toFixed(4) : usd.toFixed(3)}${won}`;
+}
+function renderCost() {
+  const line = $("#costLine");
+  const c = cur?.cost;
+  if (!c?.analysis) { line.classList.add("hide"); return; }
+  const total = sumCosts([c.analysis, c.tutor]);
+  const tokens = (x) => `입력 ${(x.input + x.cache_write + x.cache_read).toLocaleString("ko-KR")} · 출력 ${x.output.toLocaleString("ko-KR")} 토큰`;
+  let text = `사용 비용 ${fmtUsd(total.usd)} · 분석 ${fmtUsd(c.analysis.usd)}`;
+  if (c.tutor) text += ` · 튜터 ${fmtUsd(c.tutor.usd)}`;
+  line.textContent = text;
+  line.title = `분석: ${tokens(c.analysis)}` + (c.tutor ? `\n튜터: ${tokens(c.tutor)}` : "") + "\n가격표 기준 예상치예요. 정확한 금액은 Anthropic 콘솔에서 확인하세요.";
+  line.classList.remove("hide");
+}
+function addTutorCost(c) {
+  if (!cur || cur.demo) return;
+  cur.cost ||= { analysis: null, tutor: null };
+  cur.cost.tutor = sumCosts([cur.cost.tutor, c]);
+  persist(); renderCost();
+}
 const LS = { key: "cliplearn.key", lib: "cliplearn.library", theme: "cliplearn.theme", token: "cliplearn.token" };
 // 서버 모드: server/app.py가 이 화면을 띄우면, 자막·음성 인식·Claude 호출을 서버가 맡는다
 let server = null; // { stt, needs_token, max_stt_minutes } | null
@@ -553,6 +607,7 @@ const SCHEMA = obj({
   difficulty: { type: "string", enum: ["입문", "중급", "고급"] },
   estimated_minutes: int,
   summary: arr(str),
+  nuggets: arr(obj({ fact: str, time: str })),
   chapters: arr(obj({ time: str, title: str, gist: str })),
   concepts: arr(obj({ term: str, explanation: str, analogy: str })),
   lesson_path: arr(obj({ step_title: str, minutes: int, content: str, check_question: str, check_answer: str })),
@@ -569,6 +624,7 @@ const SYSTEM = `당신은 유튜브 영상을 짧고 효과적인 학습 코스�
 - 모든 출력은 자연스러운 한국어로 씁니다. 전문 용어는 처음 나올 때 원어를 괄호로 덧붙입니다.
 - 학습자 수준과 학습 시간에 분량을 맞춥니다. lesson_path의 minutes 합은 학습 시간과 비슷해야 합니다.
 - 영상에 실제로 나온 내용을 중심으로 하고, 이해에 꼭 필요한 배경지식은 보충하되 영상 밖 내용임을 문장에서 드러냅니다.
+- nuggets는 "깨알 정보" 8~15개입니다. 영상에 나온 구체적인 숫자, 사실, 실전 팁, 예시, 의외의 포인트처럼 메모해 둘 가치가 있는 것을 한 문장씩 씁니다. summary와 겹치는 큰 흐름이 아니라 구체적인 디테일이어야 하고, 각 항목은 앞뒤 맥락 없이 읽어도 이해되게 씁니다. time은 그 내용이 나온 타임스탬프이며 모르면 빈 문자열입니다.
 - chapters의 time은 스크립트의 타임스탬프(예: "3:25", "1:02:10")를 그대로 씁니다. 타임스탬프를 알 수 없으면 빈 문자열로 둡니다.
 - lesson_path 각 단계의 content는 3~6문단의 짧은 레슨입니다. 예시를 하나 이상 넣으세요. check_question은 그 단계의 핵심을 스스로 설명하게 하는 질문, check_answer는 모범 답안입니다.
 - concepts는 4~8개, flashcards는 8~14장, quiz는 5~8문항(보기 4개, answer_index는 0부터)으로 만듭니다. 퀴즈는 단순 암기보다 이해를 확인하게 하고, 오답 보기도 그럴듯하게 만듭니다. 정답 위치는 고르게 섞습니다.
@@ -607,18 +663,20 @@ async function analyze(input) {
   let chars = 0;
   stream.on("text", (t) => { chars += t.length; stepFromChars(chars); });
   let msg = await stream.finalMessage();
+  const usages = [msg.usage];
   // 서버 도구가 길어지면 pause_turn으로 끊길 수 있어요: 이어서 요청합니다.
   for (let i = 0; msg.stop_reason === "pause_turn" && i < 3; i++) {
     params.messages = [...params.messages, { role: "assistant", content: msg.content }];
     const s2 = client.beta.messages.stream(params, { signal: abortCtl.signal });
     s2.on("text", (t) => { chars += t.length; stepFromChars(chars); });
     msg = await s2.finalMessage();
+    usages.push(msg.usage);
   }
   if (msg.stop_reason === "refusal") throw new Error("이 영상 내용은 분석할 수 없다는 응답을 받았어요.");
   if (msg.stop_reason === "max_tokens") throw new Error("결과가 너무 길어 잘렸어요. 학습 시간을 줄여 다시 시도해 주세요.");
   const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
   const jsonText = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
-  return JSON.parse(jsonText);
+  return { data: JSON.parse(jsonText), cost: sumCosts(usages.map((u) => costFromUsage(MODEL, u))) };
 }
 
 /* ---------- 진행 표시 ---------- */
@@ -645,12 +703,13 @@ $("#analyzeBtn").onclick = async () => {
   show("loading"); setStep(0); $("#stageMsg").textContent = "";
   try {
     const input = { url, transcript, level: prefs.level, minutes: prefs.minutes };
-    const r = server ? await analyzeOnServer(input) : { data: await analyze(input), transcript, source: transcript ? "pasted" : "web" };
+    const r = server ? await analyzeOnServer(input) : { ...(await analyze(input)), transcript, source: transcript ? "pasted" : "web" };
     const item = {
       id: (crypto.randomUUID?.() || String(Date.now())),
       videoId, url, transcript: r.transcript, hasTranscript: r.source !== "web", source: r.source,
       level: prefs.level, minutes: Number(prefs.minutes),
       createdAt: Date.now(), data: r.data, progress: {},
+      meta: r.meta || null, cost: { analysis: r.cost || null, tutor: null },
     };
     saveItem(item);
     openItem(item);
@@ -735,6 +794,63 @@ function renderLibrary() {
 let cur = null;
 function persist() { if (cur && !cur.demo) saveItem(cur); }
 
+/* ---------- Obsidian 노트 ---------- */
+const OBSIDIAN_FOLDER = "클립러닝";
+function videoUrl(item, sec) {
+  if (!item.videoId) return item.url || "";
+  return `https://www.youtube.com/watch?v=${item.videoId}` + (sec ? `&t=${sec}s` : "");
+}
+function noteTitle(item) {
+  return (item.data.title || "클립러닝 노트").replace(/[\\/:*?"<>|#^[\]\x00-\x1f]/g, " ").replace(/\.{2,}/g, " ").replace(/\s+/g, " ").trim().slice(0, 80) || "클립러닝 노트";
+}
+// 깨알 정보만 모은 마크다운 노트 (Obsidian 속성 + 영상 시점 링크)
+function buildNote(item) {
+  const d = item.data;
+  const created = new Date(item.createdAt).toISOString().slice(0, 10);
+  const yaml = (v) => JSON.stringify(String(v ?? ""));   // 큰따옴표 YAML 문자열
+  const lines = ["---", `title: ${yaml(d.title)}`];
+  if (videoUrl(item)) lines.push(`source: ${videoUrl(item)}`);
+  if (item.meta?.channel) lines.push(`channel: ${yaml(item.meta.channel)}`);
+  lines.push(`created: ${created}`, `level: ${yaml(item.level)}`, "tags:", "  - 클립러닝", "  - 유튜브", "---", "");
+  if (d.one_liner) lines.push(`> ${d.one_liner}`, "");
+  const nug = d.nuggets?.length ? d.nuggets : d.summary.map((s) => ({ fact: s, time: "" }));
+  lines.push(d.nuggets?.length ? "## 깨알 정보" : "## 핵심 정리");
+  for (const n of nug) {
+    const sec = toSeconds(n.time);
+    lines.push(`- ${n.fact}` + (sec != null && item.videoId ? ` ([${n.time}](${videoUrl(item, sec)}))` : ""));
+  }
+  return lines.join("\n") + "\n";
+}
+function noteMsg(text, link) {
+  const m = $("#noteMsg");
+  m.replaceChildren(text);
+  if (link) m.append(" ", el("a", { href: link.href, text: link.text }));
+  m.classList.remove("hide");
+}
+$("#obsBtn").onclick = async () => {
+  if (!cur) return;
+  const md = buildNote(cur), title = noteTitle(cur);
+  if (server?.obsidian) {   // 컴퓨터의 보관함 폴더에 서버가 바로 쓴다
+    try {
+      const r = await fetch("api/obsidian", { method: "POST", headers: serverHeaders(),
+        body: JSON.stringify({ title, markdown: md, source: videoUrl(cur) }) });
+      if (!r.ok) throw new Error(await serverError(r));
+      const j = await r.json();
+      noteMsg(`Obsidian에 저장했어요: ${j.path}`,
+        { href: `obsidian://open?vault=${encodeURIComponent(j.vault)}&file=${encodeURIComponent(j.path)}`, text: "Obsidian에서 열기" });
+    } catch (err) { noteMsg(friendlyError(err)); }
+    return;
+  }
+  // 서버에 보관함 설정이 없으면 Obsidian 앱을 열어 새 노트로 만든다 (휴대폰도 가능)
+  location.href = `obsidian://new?file=${encodeURIComponent(`${OBSIDIAN_FOLDER}/${title}`)}&content=${encodeURIComponent(md)}`;
+  noteMsg("Obsidian 앱을 열었어요. 앱이 열리지 않으면 Obsidian이 설치되어 있는지 확인하거나 '노트 복사'를 써 주세요.");
+};
+$("#mdCopyBtn").onclick = async () => {
+  if (!cur) return;
+  try { await navigator.clipboard.writeText(buildNote(cur)); noteMsg("노트 내용을 복사했어요. Obsidian 새 노트에 붙여넣으세요."); }
+  catch { noteMsg("복사하지 못했어요. 브라우저가 클립보드 사용을 막았을 수 있어요."); }
+};
+
 function openItem(item) {
   cur = item;
   const d = item.data;
@@ -752,6 +868,8 @@ function openItem(item) {
   if (item.demo) b.append(el("span", { class: "badge warn", text: "예시" }));
 
   renderSummary(d); renderConcepts(d); renderPath(); renderFlashcards(true); renderQuiz(); renderTutor(); renderRelated(d);
+  renderCost();
+  $("#noteMsg").classList.add("hide");
   selectTab("sum");
   show("result");
 }
@@ -762,8 +880,19 @@ function selectTab(name) {
 }
 $("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) selectTab(b.dataset.tab); });
 
+function seekTo(time) {
+  const sec = toSeconds(time);
+  if (sec == null || !cur.videoId) return;
+  setPlayer(cur.videoId, sec, true);
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
 function renderSummary(d) {
   $("#sumList").replaceChildren(...d.summary.map((s) => el("li", { text: s })));
+  const nug = d.nuggets || [];
+  $("#nugCard").classList.toggle("hide", !nug.length);
+  $("#nugList").replaceChildren(...nug.map((n) => el("li", {}, n.fact,
+    toSeconds(n.time) != null && cur.videoId ? el("button", { class: "time", type: "button", text: n.time, onclick: () => seekTo(n.time) }) : null)));
   const list = $("#chapList"); list.replaceChildren();
   let anyTime = false;
   for (const c of d.chapters) {
@@ -930,7 +1059,10 @@ async function ask(q) {
       if (!res.ok) throw new Error(await serverError(res));
       const reader = res.body.getReader(), dec = new TextDecoder();
       let acc = "";
-      for (;;) { const { value, done } = await reader.read(); if (done) break; acc += dec.decode(value, { stream: true }); out.textContent = acc; }
+      for (;;) { const { value, done } = await reader.read(); if (done) break; acc += dec.decode(value, { stream: true }); out.textContent = acc.split(COST_MARK)[0]; }
+      const [answer, costJson] = acc.split(COST_MARK);
+      acc = answer;
+      if (costJson) { try { addTutorCost(JSON.parse(costJson)); } catch {} }
       out.textContent = acc || "답변을 받지 못했어요.";
       chatHistory.push({ role: "assistant", content: acc });
       if (!cur.demo) { cur.chat = chatHistory.slice(-20); persist(); }
@@ -958,6 +1090,7 @@ ${context}`, cache_control: { type: "ephemeral" } },
     stream.on("text", (t) => { acc += t; out.textContent = acc; });
     const msg = await stream.finalMessage();
     if (msg.stop_reason === "refusal") acc = acc || "이 질문에는 답하기 어려워요. 다른 방식으로 물어봐 주세요.";
+    addTutorCost(costFromUsage(MODEL, msg.usage));
     out.textContent = acc;
     chatHistory.push({ role: "assistant", content: acc });
     if (!cur.demo) { cur.chat = chatHistory.slice(-20); persist(); }
@@ -986,6 +1119,14 @@ const DEMO = {
       "72의 법칙: 72를 연 수익률(%)로 나누면 돈이 두 배가 되는 대략적인 기간이 나온다.",
       "10년 일찍 시작한 사람이 더 적게 넣고도 더 많이 모을 수 있다.",
       "수수료와 인플레이션도 복리로 작용하므로 '보이지 않는 마이너스 복리'를 조심해야 한다.",
+    ],
+    nuggets: [
+      { fact: "100만 원을 연 10%로 30년 굴리면 단리는 400만 원, 복리는 약 1,745만 원이 된다.", time: "1:40" },
+      { fact: "72의 법칙은 수익률이 대략 4~12%일 때 가장 잘 맞는다.", time: "4:15" },
+      { fact: "연 4% 예금이면 원금이 두 배가 되기까지 약 18년이 걸린다.", time: "4:50" },
+      { fact: "25세에 10년만 넣고 멈춘 사람이 35세부터 30년 넣은 사람과 비슷하거나 더 많이 모은다 (연 7% 가정).", time: "7:30" },
+      { fact: "연 수수료 1% 차이가 30년 뒤 최종 금액을 25% 가까이 줄일 수 있다.", time: "10:05" },
+      { fact: "실질 수익률은 명목 수익률에서 물가상승률을 뺀 값이다.", time: "" },
     ],
     chapters: [
       { time: "0:00", title: "들어가며", gist: "같은 돈을 넣었는데 결과가 두 배 차이 나는 두 친구 이야기" },

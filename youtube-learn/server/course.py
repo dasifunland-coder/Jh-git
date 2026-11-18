@@ -10,6 +10,7 @@ from anthropic import AsyncAnthropic
 from config import Settings
 
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+COST_MARK = "\x1e"  # 튜터 답변 스트림 끝의 비용 정보 구분 문자
 
 
 def _obj(props: dict) -> dict:
@@ -30,6 +31,7 @@ COURSE_SCHEMA = _obj({
     "difficulty": {"type": "string", "enum": ["입문", "중급", "고급"]},
     "estimated_minutes": _I,
     "summary": _arr(_S),
+    "nuggets": _arr(_obj({"fact": _S, "time": _S})),
     "chapters": _arr(_obj({"time": _S, "title": _S, "gist": _S})),
     "concepts": _arr(_obj({"term": _S, "explanation": _S, "analogy": _S})),
     "lesson_path": _arr(_obj({"step_title": _S, "minutes": _I, "content": _S, "check_question": _S, "check_answer": _S})),
@@ -47,6 +49,7 @@ COURSE_SYSTEM = """당신은 유튜브 영상을 짧고 효과적인 학습 코�
 - 학습자 수준과 학습 시간에 분량을 맞춥니다. lesson_path의 minutes 합은 학습 시간과 비슷해야 합니다.
 - 영상에 실제로 나온 내용을 중심으로 하고, 이해에 꼭 필요한 배경지식은 보충하되 영상 밖 내용임을 문장에서 드러냅니다.
 - 스크립트는 자동 자막이나 음성 인식 결과일 수 있어 오타·잘못 들은 단어가 섞여 있습니다. 맥락으로 바로잡아 이해하고, 틀린 표기를 그대로 옮기지 마세요.
+- nuggets는 "깨알 정보" 8~15개입니다. 영상에 나온 구체적인 숫자, 사실, 실전 팁, 예시, 의외의 포인트처럼 메모해 둘 가치가 있는 것을 한 문장씩 씁니다. summary와 겹치는 큰 흐름이 아니라 구체적인 디테일이어야 하고, 각 항목은 앞뒤 맥락 없이 읽어도 이해되게 씁니다. time은 그 내용이 나온 타임스탬프이며 모르면 빈 문자열입니다.
 - chapters의 time은 스크립트의 타임스탬프(예: "3:25", "1:02:10")를 그대로 씁니다. 타임스탬프를 알 수 없으면 빈 문자열로 둡니다.
 - lesson_path 각 단계의 content는 3~6문단의 짧은 레슨입니다. 예시를 하나 이상 넣으세요. check_question은 그 단계의 핵심을 스스로 설명하게 하는 질문, check_answer는 모범 답안입니다.
 - concepts는 4~8개, flashcards는 8~14장, quiz는 5~8문항(보기 4개, answer_index는 0부터)으로 만듭니다. 퀴즈는 단순 암기보다 이해를 확인하게 하고, 오답 보기도 그럴듯하게 만듭니다. 정답 위치는 고르게 섞습니다.
@@ -56,6 +59,39 @@ COURSE_SYSTEM = """당신은 유튜브 영상을 짧고 효과적인 학습 코�
 
 class CourseError(Exception):
     """사용자에게 보여 줄 한국어 메시지."""
+
+
+# 100만 토큰당 달러 (입력, 출력, 캐시 쓰기, 캐시 읽기). 2026-11 기준 공개 가격.
+PRICES = {
+    "claude-opus-5-5": (4.00, 20.00, 5.00, 0.20),
+    "claude-sonnet-5-5": (2.00, 10.00, 2.50, 0.10),
+    "claude-haiku-5-5": (0.10, 0.50, 0.125, 0.01),
+    "claude-fable-5-2": (8.00, 40.00, 10.00, 0.20),
+}
+
+
+def usage_cost(model: str, usage, usd_krw: float = 0) -> dict:
+    """응답의 usage로 토큰 수와 예상 비용을 계산한다. 모르는 모델이면 usd는 None."""
+    inp = getattr(usage, "input_tokens", 0) or 0
+    out = getattr(usage, "output_tokens", 0) or 0
+    cw = getattr(usage, "cache_creation_input_tokens", 0) or 0
+    cr = getattr(usage, "cache_read_input_tokens", 0) or 0
+    p = PRICES.get(model)
+    usd = None
+    if p:
+        usd = round((inp * p[0] + out * p[1] + cw * p[2] + cr * p[3]) / 1_000_000, 4)
+    return {
+        "model": model, "input": inp, "output": out, "cache_write": cw, "cache_read": cr,
+        "usd": usd, "krw": round(usd * usd_krw) if usd is not None and usd_krw else None,
+    }
+
+
+def cost_line(label: str, c: dict) -> str:
+    tokens = f"입력 {c['input'] + c['cache_write'] + c['cache_read']:,} / 출력 {c['output']:,} 토큰"
+    if c["usd"] is None:
+        return f"[비용] {label}: {tokens} (모델 {c['model']}의 가격을 몰라 금액은 계산하지 않음)"
+    won = f", 약 {c['krw']:,}원" if c.get("krw") else ""
+    return f"[비용] {label}: {tokens} → 약 ${c['usd']:.3f}{won}"
 
 
 NO_KEY_MESSAGE = (
@@ -89,7 +125,9 @@ def course_prompt(*, transcript: str, level: str, minutes: int, title: str = "",
     return "\n\n".join(parts)
 
 
-async def build_course(settings: Settings, prompt: str, on_progress: Callable[[int], Awaitable[None]] | None = None) -> dict:
+async def build_course(settings: Settings, prompt: str,
+                       on_progress: Callable[[int], Awaitable[None]] | None = None) -> tuple[dict, dict]:
+    """학습 코스(JSON)와 이번 호출의 토큰·비용을 돌려준다."""
     client = make_client(settings)
     chars = 0
     try:
@@ -108,6 +146,8 @@ async def build_course(settings: Settings, prompt: str, on_progress: Callable[[i
                 if on_progress:
                     await on_progress(chars)
             msg = await stream.get_final_message()
+        cost = usage_cost(settings.claude_model, msg.usage, settings.usd_krw)
+        print(cost_line("학습 코스 생성", cost), flush=True)
     except anthropic.AuthenticationError as e:
         raise CourseError("서버의 Claude API 키가 올바르지 않아요.") from e
     except anthropic.RateLimitError as e:
@@ -127,7 +167,7 @@ async def build_course(settings: Settings, prompt: str, on_progress: Callable[[i
         raise CourseError("결과가 너무 길어 잘렸어요. 학습 시간을 줄여 다시 시도해 주세요.")
     text = "".join(b.text for b in msg.content if b.type == "text").strip()
     try:
-        return json.loads(text)
+        return json.loads(text), cost
     except json.JSONDecodeError as e:
         raise CourseError("결과를 읽지 못했어요. 한 번 더 시도해 주세요.") from e
 
@@ -169,6 +209,10 @@ async def tutor_stream(settings: Settings, *, system: list[dict], messages: list
             msg = await stream.get_final_message()
             if msg.stop_reason == "refusal" and not got:
                 yield "이 질문에는 답하기 어려워요. 다른 방식으로 물어봐 주세요."
+            cost = usage_cost(settings.claude_model, msg.usage, settings.usd_krw)
+            print(cost_line("튜터 답변", cost), flush=True)
+            # 답변 끝에 비용 정보를 붙인다. 화면은 이 구분 문자 뒤를 잘라 비용 표시에 쓴다.
+            yield COST_MARK + json.dumps(cost)
     except anthropic.RateLimitError:
         yield "\n[요청이 많아 잠시 막혔어요. 잠시 후 다시 물어봐 주세요.]"
     except anthropic.APIError:
