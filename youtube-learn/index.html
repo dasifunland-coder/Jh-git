@@ -1,0 +1,903 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>클립러닝</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700&display=swap">
+<style>
+:root{
+  --bg:#f6f5f1; --surface:#ffffff; --surface-2:#efede6; --line:#dedad0;
+  --ink:#1d1c19; --ink-2:#55524a; --ink-3:#8a867b;
+  --accent:#d4402b; --accent-ink:#ffffff; --accent-soft:#fbe5e1;
+  --ok:#23824f; --ok-soft:#dff1e6; --bad:#b8352a; --bad-soft:#f8e0dd;
+  --warn:#8a6200; --warn-soft:#fbefd0;
+  --radius:14px; --shadow:0 1px 2px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.05);
+  --f:"Noto Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141412; --surface:#1d1c1a; --surface-2:#262522; --line:#34322e;
+    --ink:#f1efe9; --ink-2:#bdb9ae; --ink-3:#8b877c;
+    --accent:#ff6a52; --accent-ink:#1a0c09; --accent-soft:#3a1f1a;
+    --ok:#5fd093; --ok-soft:#173326; --bad:#ff8a7d; --bad-soft:#3b1d1a;
+    --warn:#f0c35a; --warn-soft:#352b12;
+    --shadow:none; color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141412; --surface:#1d1c1a; --surface-2:#262522; --line:#34322e;
+  --ink:#f1efe9; --ink-2:#bdb9ae; --ink-3:#8b877c;
+  --accent:#ff6a52; --accent-ink:#1a0c09; --accent-soft:#3a1f1a;
+  --ok:#5fd093; --ok-soft:#173326; --bad:#ff8a7d; --bad-soft:#3b1d1a;
+  --warn:#f0c35a; --warn-soft:#352b12;
+  --shadow:none; color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--f);font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+button,input,textarea,select{font:inherit;color:inherit}
+a{color:var(--accent)}
+.wrap{max-width:980px;margin:0 auto;padding:16px 16px 64px}
+header.top{display:flex;align-items:center;gap:12px;padding:6px 0 18px}
+.logo{display:flex;align-items:center;gap:10px;font-weight:700;font-size:20px;letter-spacing:-.02em;cursor:pointer;background:none;border:0;padding:0}
+.logo-mark{width:30px;height:30px;border-radius:8px;background:var(--accent);display:grid;place-items:center}
+.logo-mark svg{width:14px;height:14px;fill:var(--accent-ink)}
+.top-actions{margin-left:auto;display:flex;gap:6px}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:9px 14px;cursor:pointer;font-weight:500;line-height:1.2;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--surface-2)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700}
+.btn.primary:hover{filter:brightness(1.05)}
+.btn.ghost{background:transparent;border-color:transparent}
+.btn.ghost:hover{background:var(--surface-2)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.sm{padding:6px 10px;font-size:14px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:20px}
+.muted{color:var(--ink-2)}
+.faint{color:var(--ink-3);font-size:14px}
+h1,h2,h3{letter-spacing:-.02em;line-height:1.3;margin:0}
+.hero h1{font-size:clamp(26px,5vw,38px);margin-bottom:8px}
+.hero p{margin:0 0 22px;color:var(--ink-2)}
+label.lbl{display:block;font-weight:700;font-size:14px;margin:0 0 6px}
+.input,textarea.input{width:100%;border:1px solid var(--line);background:var(--bg);border-radius:10px;padding:12px 14px;outline:none}
+.input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft)}
+textarea.input{min-height:150px;resize:vertical;font-size:14px;line-height:1.55}
+.row{display:flex;gap:12px;flex-wrap:wrap}
+.row>*{flex:1 1 200px}
+.field{margin-bottom:16px}
+.seg{display:flex;background:var(--surface-2);border-radius:10px;padding:3px;gap:3px}
+.seg button{flex:1;border:0;background:transparent;border-radius:8px;padding:8px 6px;cursor:pointer;font-size:14px;color:var(--ink-2)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);font-weight:700;box-shadow:var(--shadow)}
+details.howto{border:1px dashed var(--line);border-radius:10px;padding:10px 14px;margin-bottom:16px;background:var(--bg)}
+details.howto summary{cursor:pointer;font-weight:500}
+details.howto ol{margin:8px 0 0;padding-left:20px;color:var(--ink-2);font-size:14px}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.err{background:var(--bad-soft);color:var(--bad);border-radius:10px;padding:10px 14px;margin-top:14px;font-size:14px;white-space:pre-wrap}
+.features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:22px}
+.feat{padding:14px 16px;border-radius:12px;background:var(--surface);border:1px solid var(--line)}
+.feat b{display:block;margin-bottom:2px}
+.feat span{color:var(--ink-2);font-size:14px}
+.section-title{display:flex;align-items:center;justify-content:space-between;margin:30px 0 12px}
+.section-title h2{font-size:18px}
+.lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.lib-item{display:flex;gap:10px;padding:10px;border-radius:12px;background:var(--surface);border:1px solid var(--line);cursor:pointer;text-align:left;align-items:flex-start}
+.lib-item:hover{border-color:var(--accent)}
+.lib-item img{width:88px;aspect-ratio:16/9;object-fit:cover;border-radius:6px;background:var(--surface-2);flex:none}
+.lib-item .t{font-weight:500;font-size:14px;line-height:1.4;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.lib-item .d{font-size:12px;color:var(--ink-3)}
+.lib-del{margin-left:auto;border:0;background:none;color:var(--ink-3);cursor:pointer;padding:2px 4px;border-radius:6px}
+.lib-del:hover{color:var(--bad);background:var(--bad-soft)}
+
+/* 진행 */
+.loading{text-align:center;padding:48px 20px}
+.spinner{width:42px;height:42px;border-radius:50%;border:4px solid var(--surface-2);border-top-color:var(--accent);animation:spin 0.9s linear infinite;margin:0 auto 18px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.steps{list-style:none;padding:0;margin:18px auto 0;max-width:320px;text-align:left}
+.steps li{padding:4px 0;color:var(--ink-3);font-size:14px}
+.steps li.on{color:var(--ink);font-weight:500}
+.steps li.done{color:var(--ok)}
+.steps li::before{content:"○ ";}
+.steps li.on::before{content:"● ";color:var(--accent)}
+.steps li.done::before{content:"✓ "}
+
+/* 결과 */
+.result-head{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:760px){.result-head{grid-template-columns:1fr}}
+.player{aspect-ratio:16/9;border-radius:12px;overflow:hidden;background:#000}
+.player iframe{width:100%;height:100%;border:0;display:block}
+.player.empty{display:grid;place-items:center;color:#aaa;font-size:14px}
+.badges{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.badge{font-size:12px;padding:3px 9px;border-radius:999px;background:var(--surface-2);color:var(--ink-2);font-weight:500}
+.badge.accent{background:var(--accent-soft);color:var(--accent)}
+.badge.warn{background:var(--warn-soft);color:var(--warn)}
+.result-head h1{font-size:clamp(20px,3.4vw,26px)}
+.oneliner{font-size:17px;margin:8px 0 0}
+.tabs{display:flex;gap:4px;overflow-x:auto;margin:24px 0 14px;border-bottom:1px solid var(--line);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{border:0;background:none;padding:10px 12px;cursor:pointer;color:var(--ink-2);white-space:nowrap;border-bottom:2px solid transparent;margin-bottom:-1px;font-weight:500}
+.tabs button[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent);font-weight:700}
+.tabs .cnt{font-size:12px;color:var(--ink-3);margin-left:3px}
+.panel{display:none}
+.panel.on{display:block}
+ul.points{margin:0;padding-left:20px}
+ul.points li{margin:6px 0}
+.chapters{display:flex;flex-direction:column;gap:8px;margin-top:6px}
+.chap{display:grid;grid-template-columns:auto 1fr;gap:12px;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--surface);text-align:left;cursor:default}
+.chap.click{cursor:pointer}
+.chap.click:hover{border-color:var(--accent)}
+.time{font-variant-numeric:tabular-nums;font-size:13px;font-weight:700;color:var(--accent);background:var(--accent-soft);border-radius:6px;padding:2px 7px;height:fit-content}
+.chap .gist{color:var(--ink-2);font-size:14px}
+.grid2{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.concept h3{font-size:16px;margin-bottom:6px}
+.concept .ana{margin-top:8px;font-size:14px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:8px 10px}
+.caveat{background:var(--warn-soft);color:var(--ink);border-radius:12px;padding:14px 16px;margin-top:18px}
+.caveat b{color:var(--warn)}
+
+/* 학습 경로 */
+.progress{height:6px;background:var(--surface-2);border-radius:99px;overflow:hidden;margin:6px 0 16px}
+.progress>div{height:100%;background:var(--accent);transition:width .3s}
+.step{border:1px solid var(--line);border-radius:12px;background:var(--surface);margin-bottom:10px;overflow:hidden}
+.step-h{display:flex;align-items:center;gap:12px;padding:14px 16px;cursor:pointer;width:100%;border:0;background:none;text-align:left}
+.step-n{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--surface-2);font-weight:700;font-size:14px;flex:none}
+.step.done .step-n{background:var(--ok);color:#fff}
+.step-h .m{margin-left:auto;font-size:13px;color:var(--ink-3);white-space:nowrap}
+.step-b{display:none;padding:0 16px 16px 56px}
+.step.open .step-b{display:block}
+@media (max-width:520px){.step-b{padding-left:16px}}
+.lesson{white-space:pre-wrap}
+.check{margin-top:12px;background:var(--surface-2);border-radius:10px;padding:12px 14px}
+.check .q{font-weight:500}
+.check .a{margin-top:8px;color:var(--ink-2);display:none}
+.check.show .a{display:block}
+
+/* 플래시카드 */
+.fc-wrap{max-width:560px;margin:0 auto;text-align:center}
+.fc{perspective:1200px;height:260px;margin:10px 0 16px;cursor:pointer}
+.fc-in{position:relative;width:100%;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.fc.flip .fc-in{transform:rotateY(180deg)}
+.fc-face{position:absolute;inset:0;backface-visibility:hidden;border-radius:16px;border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px;font-size:19px;overflow:auto}
+.fc-face.back{transform:rotateY(180deg);background:var(--surface-2);font-size:16px}
+.fc-face small{position:absolute;top:12px;left:16px;font-size:12px;color:var(--ink-3)}
+@media (prefers-reduced-motion:reduce){.fc-in{transition:none}}
+.fc-stats{display:flex;justify-content:center;gap:16px;font-size:14px;color:var(--ink-2);margin-bottom:8px}
+.fc-done{padding:30px 10px}
+
+/* 퀴즈 */
+.qz{margin-bottom:14px}
+.qz .qq{font-weight:500;margin-bottom:10px}
+.choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;margin:6px 0;cursor:pointer}
+.choice:hover:not(:disabled){border-color:var(--accent)}
+.choice.right{border-color:var(--ok);background:var(--ok-soft)}
+.choice.wrong{border-color:var(--bad);background:var(--bad-soft)}
+.choice:disabled{cursor:default}
+.expl{margin-top:8px;font-size:14px;color:var(--ink-2);background:var(--surface-2);border-radius:8px;padding:8px 12px}
+.score{display:flex;align-items:center;gap:14px;padding:16px 18px;border-radius:12px;background:var(--accent-soft);margin-bottom:16px}
+.score .big{font-size:28px;font-weight:700;color:var(--accent)}
+
+/* 튜터 */
+.chat{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.msg{padding:10px 14px;border-radius:12px;max-width:88%;white-space:pre-wrap}
+.msg.u{align-self:flex-end;background:var(--accent);color:var(--accent-ink)}
+.msg.a{align-self:flex-start;background:var(--surface-2)}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:5px 12px;font-size:13px;cursor:pointer}
+.chip:hover{border-color:var(--accent)}
+.ask{display:flex;gap:8px}
+.ask .input{flex:1}
+
+/* 관련 */
+.rel h3{font-size:16px;margin-bottom:4px}
+.rel p{margin:0 0 10px;font-size:14px;color:var(--ink-2)}
+.rel a{font-size:14px;font-weight:500;text-decoration:none}
+
+/* 모달 */
+dialog{border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);padding:22px;max-width:460px;width:calc(100% - 32px)}
+dialog::backdrop{background:rgba(0,0,0,.45)}
+dialog h2{font-size:18px;margin-bottom:8px}
+.hide{display:none!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <button class="logo" id="goHome" aria-label="처음 화면">
+      <span class="logo-mark"><svg viewBox="0 0 10 10"><path d="M2 1 L9 5 L2 9 Z"/></svg></span>
+      클립러닝
+    </button>
+    <div class="top-actions">
+      <button class="btn ghost sm" id="themeBtn" aria-label="테마 전환">테마</button>
+      <button class="btn ghost sm" id="settingsBtn">API 키</button>
+    </div>
+  </header>
+
+  <!-- 홈 -->
+  <main id="home">
+    <section class="hero">
+      <h1>유튜브 한 편을 15분 학습 코스로</h1>
+      <p>영상 내용을 분석해서 요약, 핵심 개념, 단계별 레슨, 플래시카드, 퀴즈, 다음에 공부할 주제까지 만들어 드려요.</p>
+    </section>
+    <div class="card">
+      <div class="field">
+        <label class="lbl" for="url">유튜브 링크</label>
+        <input class="input" id="url" type="url" placeholder="https://www.youtube.com/watch?v=..." autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="lbl" for="transcript">스크립트 <span class="faint">(권장: 붙여넣으면 훨씬 정확해요)</span></label>
+        <details class="howto">
+          <summary>스크립트 가져오는 법</summary>
+          <ol>
+            <li>PC에서 유튜브 영상을 열고 설명란 아래 <b>스크립트 표시</b>를 누릅니다.</li>
+            <li>오른쪽에 열린 스크립트 창을 드래그해 전체 선택 후 복사합니다.</li>
+            <li>아래 칸에 붙여넣으세요. 타임스탬프가 있으면 챕터를 눌러 그 시점으로 이동할 수 있어요.</li>
+          </ol>
+          <p class="faint" style="margin:8px 0 0">비워 두면 AI가 웹에서 영상 정보를 찾아 분석해요. 다만 영상 속 말을 직접 보지 못해 정확도가 떨어질 수 있어요.</p>
+        </details>
+        <textarea class="input" id="transcript" placeholder="0:00 안녕하세요, 오늘은...&#10;0:12 ..."></textarea>
+      </div>
+      <div class="row">
+        <div class="field">
+          <span class="lbl">내 수준</span>
+          <div class="seg" data-key="level" role="group" aria-label="수준">
+            <button aria-pressed="true" data-v="입문">입문</button>
+            <button aria-pressed="false" data-v="중급">중급</button>
+            <button aria-pressed="false" data-v="고급">고급</button>
+          </div>
+        </div>
+        <div class="field">
+          <span class="lbl">학습할 시간</span>
+          <div class="seg" data-key="minutes" role="group" aria-label="학습 시간">
+            <button aria-pressed="false" data-v="5">5분</button>
+            <button aria-pressed="true" data-v="15">15분</button>
+            <button aria-pressed="false" data-v="30">30분</button>
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="analyzeBtn">분석 시작</button>
+        <button class="btn" id="demoBtn">예시로 둘러보기</button>
+        <span class="faint" id="keyHint"></span>
+      </div>
+      <div class="err hide" id="homeErr"></div>
+    </div>
+
+    <div class="features">
+      <div class="feat"><b>요약 · 챕터</b><span>누르면 그 장면으로 이동</span></div>
+      <div class="feat"><b>단계별 미니 레슨</b><span>정한 시간에 맞춘 학습 경로</span></div>
+      <div class="feat"><b>플래시카드 · 퀴즈</b><span>떠올리기로 오래 기억</span></div>
+      <div class="feat"><b>AI 튜터</b><span>영상 내용으로 질문에 답변</span></div>
+    </div>
+
+    <div id="libSection" class="hide">
+      <div class="section-title"><h2>보관함</h2></div>
+      <div class="lib" id="lib"></div>
+    </div>
+  </main>
+
+  <!-- 분석 중 -->
+  <main id="loading" class="hide">
+    <div class="card loading">
+      <div class="spinner"></div>
+      <h2 style="font-size:18px">영상을 학습 코스로 만들고 있어요</h2>
+      <p class="faint" style="margin:6px 0 0">스크립트 길이에 따라 1~3분쯤 걸려요.</p>
+      <ul class="steps" id="steps">
+        <li>영상 정보 확인</li>
+        <li>내용 분석</li>
+        <li>학습 코스 구성</li>
+        <li>퀴즈·카드 정리</li>
+      </ul>
+      <div style="margin-top:20px"><button class="btn sm" id="cancelBtn">취소</button></div>
+    </div>
+  </main>
+
+  <!-- 결과 -->
+  <main id="result" class="hide">
+    <div class="result-head">
+      <div class="player" id="player"></div>
+      <div>
+        <div class="badges" id="badges"></div>
+        <h1 id="rTitle"></h1>
+        <p class="oneliner muted" id="rOne"></p>
+        <div class="actions" style="margin-top:14px">
+          <button class="btn sm" id="newBtn">다른 영상 분석</button>
+        </div>
+      </div>
+    </div>
+
+    <nav class="tabs" role="tablist" id="tabs">
+      <button role="tab" data-tab="sum" aria-selected="true">요약</button>
+      <button role="tab" data-tab="con" aria-selected="false">핵심 개념</button>
+      <button role="tab" data-tab="path" aria-selected="false">학습 경로</button>
+      <button role="tab" data-tab="fc" aria-selected="false">플래시카드</button>
+      <button role="tab" data-tab="quiz" aria-selected="false">퀴즈</button>
+      <button role="tab" data-tab="tutor" aria-selected="false">AI 튜터</button>
+      <button role="tab" data-tab="rel" aria-selected="false">더 공부하기</button>
+    </nav>
+
+    <section class="panel on" data-panel="sum">
+      <div class="card"><h2 style="font-size:16px;margin-bottom:8px">핵심 요약</h2><ul class="points" id="sumList"></ul></div>
+      <div class="section-title"><h2>챕터</h2><span class="faint" id="chapHint"></span></div>
+      <div class="chapters" id="chapList"></div>
+      <div id="caveats"></div>
+    </section>
+    <section class="panel" data-panel="con"><div class="grid2" id="conList"></div></section>
+    <section class="panel" data-panel="path">
+      <div class="faint" id="pathMeta"></div>
+      <div class="progress"><div id="pathBar" style="width:0"></div></div>
+      <div id="pathList"></div>
+    </section>
+    <section class="panel" data-panel="fc"><div class="fc-wrap" id="fcBox"></div></section>
+    <section class="panel" data-panel="quiz"><div id="quizBox"></div></section>
+    <section class="panel" data-panel="tutor">
+      <div class="card">
+        <div class="chat" id="chat"></div>
+        <div class="chips" id="chips"></div>
+        <form class="ask" id="askForm">
+          <input class="input" id="askInput" placeholder="영상 내용에 대해 물어보세요" autocomplete="off">
+          <button class="btn primary" id="askBtn">질문</button>
+        </form>
+        <p class="faint" id="tutorNote" style="margin:8px 0 0"></p>
+      </div>
+    </section>
+    <section class="panel" data-panel="rel"><div class="grid2" id="relList"></div></section>
+  </main>
+</div>
+
+<dialog id="settings">
+  <h2>Claude API 키</h2>
+  <p class="muted" style="font-size:14px;margin:0 0 12px">분석에는 Anthropic API 키가 필요해요. 키는 이 브라우저에만 저장되고, Anthropic API로만 전송돼요. 공용 PC에서는 사용 후 삭제하세요.</p>
+  <input class="input" id="keyInput" type="password" placeholder="sk-ant-..." autocomplete="off">
+  <div class="actions" style="margin-top:14px;justify-content:flex-end">
+    <button class="btn ghost" id="keyClear">삭제</button>
+    <button class="btn" id="keyCancel">닫기</button>
+    <button class="btn primary" id="keySave">저장</button>
+  </div>
+</dialog>
+
+<script type="module">
+const SDK_URL = "https://cdn.jsdelivr.net/npm/@anthropic-ai/sdk@1.4.0/+esm";
+const MODEL = "claude-opus-5-5";
+const LS = { key: "cliplearn.key", lib: "cliplearn.library", theme: "cliplearn.theme" };
+
+/* ---------- 저장소 (localStorage는 막혀 있을 수 있음) ---------- */
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+
+const $ = (s, r = document) => r.querySelector(s);
+const $$ = (s, r = document) => [...r.querySelectorAll(s)];
+function el(tag, attrs = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) {
+    if (k === "class") n.className = v;
+    else if (k === "text") n.textContent = v;
+    else if (k.startsWith("on")) n.addEventListener(k.slice(2), v);
+    else n.setAttribute(k, v);
+  }
+  for (const c of kids) if (c != null) n.append(c);
+  return n;
+}
+
+/* ---------- 테마 ---------- */
+const themeSaved = store.get(LS.theme, null);
+if (themeSaved) document.documentElement.dataset.theme = themeSaved;
+$("#themeBtn").onclick = () => {
+  const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+  const cur = document.documentElement.dataset.theme || (dark ? "dark" : "light");
+  const next = cur === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  store.set(LS.theme, next);
+};
+
+/* ---------- 화면 전환 ---------- */
+function show(id) {
+  for (const s of ["home", "loading", "result"]) $("#" + s).classList.toggle("hide", s !== id);
+  window.scrollTo({ top: 0 });
+}
+$("#goHome").onclick = () => { renderLibrary(); show("home"); };
+$("#newBtn").onclick = () => { $("#url").value = ""; $("#transcript").value = ""; renderLibrary(); show("home"); };
+
+/* ---------- 선택 버튼 ---------- */
+const prefs = { level: "입문", minutes: "15" };
+for (const seg of $$(".seg")) {
+  seg.addEventListener("click", (e) => {
+    const b = e.target.closest("button"); if (!b) return;
+    for (const x of $$("button", seg)) x.setAttribute("aria-pressed", String(x === b));
+    prefs[seg.dataset.key] = b.dataset.v;
+  });
+}
+
+/* ---------- API 키 ---------- */
+const dlg = $("#settings");
+function refreshKeyHint() {
+  $("#keyHint").textContent = store.get(LS.key, "") ? "" : "API 키가 없으면 예시만 볼 수 있어요.";
+}
+$("#settingsBtn").onclick = () => { $("#keyInput").value = store.get(LS.key, ""); dlg.showModal(); };
+$("#keyCancel").onclick = () => dlg.close();
+$("#keySave").onclick = () => { const v = $("#keyInput").value.trim(); if (v) store.set(LS.key, v); dlg.close(); refreshKeyHint(); };
+$("#keyClear").onclick = () => { store.del(LS.key); $("#keyInput").value = ""; refreshKeyHint(); };
+refreshKeyHint();
+
+/* ---------- 유튜브 ---------- */
+function parseVideoId(u) {
+  if (!u) return null;
+  const s = u.trim();
+  if (/^[\w-]{11}$/.test(s)) return s;
+  try {
+    const url = new URL(s);
+    const h = url.hostname.replace(/^www\.|^m\./, "");
+    if (h === "youtu.be") return url.pathname.slice(1, 12) || null;
+    if (h.endsWith("youtube.com") || h.endsWith("youtube-nocookie.com")) {
+      if (url.searchParams.get("v")) return url.searchParams.get("v").slice(0, 11);
+      const m = url.pathname.match(/\/(shorts|embed|live|v)\/([\w-]{11})/);
+      if (m) return m[2];
+    }
+  } catch {}
+  return null;
+}
+function toSeconds(t) {
+  if (!t) return null;
+  const parts = String(t).trim().split(":").map(Number);
+  if (parts.some(isNaN) || parts.length < 2 || parts.length > 3) return null;
+  return parts.reduce((a, b) => a * 60 + b, 0);
+}
+function setPlayer(id, start = 0, autoplay = false) {
+  const box = $("#player");
+  box.replaceChildren();
+  if (!id) { box.classList.add("empty"); box.textContent = "영상 미리보기 없음"; return; }
+  box.classList.remove("empty");
+  const src = `https://www.youtube-nocookie.com/embed/${id}?rel=0&start=${Math.floor(start)}${autoplay ? "&autoplay=1" : ""}`;
+  box.append(el("iframe", { src, title: "유튜브 영상", allow: "autoplay; encrypted-media; picture-in-picture", allowfullscreen: "" }));
+}
+
+/* ---------- Claude ---------- */
+let sdkPromise = null;
+async function getClient() {
+  const apiKey = store.get(LS.key, "");
+  if (!apiKey) throw new Error("API 키를 먼저 저장해 주세요. (오른쪽 위 'API 키')");
+  sdkPromise ??= import(SDK_URL);
+  const { default: Anthropic } = await sdkPromise;
+  return { Anthropic, client: new Anthropic({ apiKey, dangerouslyAllowBrowser: true }) };
+}
+
+const str = { type: "string" };
+const int = { type: "integer" };
+const obj = (props) => ({ type: "object", properties: props, required: Object.keys(props), additionalProperties: false });
+const arr = (items) => ({ type: "array", items });
+const SCHEMA = obj({
+  title: str,
+  one_liner: str,
+  difficulty: { type: "string", enum: ["입문", "중급", "고급"] },
+  estimated_minutes: int,
+  summary: arr(str),
+  chapters: arr(obj({ time: str, title: str, gist: str })),
+  concepts: arr(obj({ term: str, explanation: str, analogy: str })),
+  lesson_path: arr(obj({ step_title: str, minutes: int, content: str, check_question: str, check_answer: str })),
+  flashcards: arr(obj({ front: str, back: str })),
+  quiz: arr(obj({ question: str, choices: arr(str), answer_index: int, explanation: str })),
+  related: arr(obj({ topic: str, why: str, search_query: str })),
+  caveats: arr(str),
+});
+
+const SYSTEM = `당신은 유튜브 영상을 짧고 효과적인 학습 코스로 바꾸는 학습 설계자입니다.
+학습자는 영상 내용을 "이해하고 기억하는 것"이 목표입니다. 요약에서 멈추지 말고, 떠올리기(퀴즈·카드)와 다음 학습까지 설계하세요.
+
+작성 원칙
+- 모든 출력은 자연스러운 한국어로 씁니다. 전문 용어는 처음 나올 때 원어를 괄호로 덧붙입니다.
+- 학습자 수준과 학습 시간에 분량을 맞춥니다. lesson_path의 minutes 합은 학습 시간과 비슷해야 합니다.
+- 영상에 실제로 나온 내용을 중심으로 하고, 이해에 꼭 필요한 배경지식은 보충하되 영상 밖 내용임을 문장에서 드러냅니다.
+- chapters의 time은 스크립트의 타임스탬프(예: "3:25", "1:02:10")를 그대로 씁니다. 타임스탬프를 알 수 없으면 빈 문자열로 둡니다.
+- lesson_path 각 단계의 content는 3~6문단의 짧은 레슨입니다. 예시를 하나 이상 넣으세요. check_question은 그 단계의 핵심을 스스로 설명하게 하는 질문, check_answer는 모범 답안입니다.
+- concepts는 4~8개, flashcards는 8~14장, quiz는 5~8문항(보기 4개, answer_index는 0부터)으로 만듭니다. 퀴즈는 단순 암기보다 이해를 확인하게 하고, 오답 보기도 그럴듯하게 만듭니다. 정답 위치는 고르게 섞습니다.
+- related는 4~6개로, 이 영상 다음에 공부하면 좋은 주제와 이유, 유튜브에서 쓸 검색어를 줍니다.
+- caveats에는 영상 속 주장 중 사실 확인이 필요하거나, 오래되었거나, 논쟁적인 부분을 적습니다. 없으면 빈 배열입니다.`;
+
+function analysisPrompt({ url, transcript, level, minutes }) {
+  const head = `학습자 수준: ${level}\n학습 시간: 약 ${minutes}분\n영상 링크: ${url || "(없음)"}`;
+  if (transcript) {
+    return `${head}\n\n아래는 영상 스크립트입니다. 이 내용을 바탕으로 학습 코스를 만들어 주세요.\n\n<transcript>\n${transcript}\n</transcript>`;
+  }
+  return `${head}\n\n스크립트가 없습니다. 웹 검색과 웹 페이지 조회 도구로 이 영상의 제목, 채널, 설명, 다룬 내용을 조사한 뒤 학습 코스를 만들어 주세요. 영상 자체를 확인하지 못한 부분은 caveats에 "스크립트 없이 분석되어 영상 내용과 다를 수 있음"이라고 적어 주세요. 조사한 내용만으로 영상 주제를 알 수 없으면 title에 "영상 정보를 찾지 못했어요"라고 쓰고 나머지는 최소한으로 채우세요.`;
+}
+
+let abortCtl = null;
+async function analyze(input) {
+  const { client } = await getClient();
+  abortCtl = new AbortController();
+  const params = {
+    model: MODEL,
+    max_tokens: 64000,
+    betas: ["server-side-fallback-2026-07-01"],
+    fallbacks: "default",
+    thinking: { type: "adaptive" },
+    output_config: { effort: "medium", format: { type: "json_schema", schema: SCHEMA } },
+    system: SYSTEM,
+    messages: [{ role: "user", content: analysisPrompt(input) }],
+  };
+  if (!input.transcript) {
+    params.tools = [
+      { type: "web_search_20260209", name: "web_search", max_uses: 5 },
+      { type: "web_fetch_20260209", name: "web_fetch", max_uses: 3 },
+    ];
+  }
+  const stream = client.beta.messages.stream(params, { signal: abortCtl.signal });
+  let chars = 0;
+  stream.on("text", (t) => { chars += t.length; stepFromChars(chars); });
+  let msg = await stream.finalMessage();
+  // 서버 도구가 길어지면 pause_turn으로 끊길 수 있어요: 이어서 요청합니다.
+  for (let i = 0; msg.stop_reason === "pause_turn" && i < 3; i++) {
+    params.messages = [...params.messages, { role: "assistant", content: msg.content }];
+    const s2 = client.beta.messages.stream(params, { signal: abortCtl.signal });
+    s2.on("text", (t) => { chars += t.length; stepFromChars(chars); });
+    msg = await s2.finalMessage();
+  }
+  if (msg.stop_reason === "refusal") throw new Error("이 영상 내용은 분석할 수 없다는 응답을 받았어요.");
+  if (msg.stop_reason === "max_tokens") throw new Error("결과가 너무 길어 잘렸어요. 학습 시간을 줄여 다시 시도해 주세요.");
+  const text = msg.content.filter((b) => b.type === "text").map((b) => b.text).join("").trim();
+  const jsonText = text.slice(text.indexOf("{"), text.lastIndexOf("}") + 1);
+  return JSON.parse(jsonText);
+}
+
+/* ---------- 진행 표시 ---------- */
+function setStep(i) {
+  $$("#steps li").forEach((li, j) => { li.className = j < i ? "done" : j === i ? "on" : ""; });
+}
+function stepFromChars(n) { setStep(n < 1 ? 1 : n < 4000 ? 2 : 3); }
+
+/* ---------- 분석 실행 ---------- */
+function homeError(m) { const e = $("#homeErr"); e.textContent = m; e.classList.toggle("hide", !m); }
+$("#analyzeBtn").onclick = async () => {
+  homeError("");
+  const url = $("#url").value.trim();
+  const transcript = $("#transcript").value.trim();
+  const videoId = parseVideoId(url);
+  if (!videoId && !transcript) return homeError("유튜브 링크나 스크립트 중 하나는 넣어 주세요.");
+  if (url && !videoId) return homeError("유튜브 링크 형식이 아니에요. 예: https://www.youtube.com/watch?v=...");
+  if (!store.get(LS.key, "")) { dlg.showModal(); return; }
+  show("loading"); setStep(0);
+  try {
+    const data = await analyze({ url, transcript, level: prefs.level, minutes: prefs.minutes });
+    const item = {
+      id: (crypto.randomUUID?.() || String(Date.now())),
+      videoId, url, transcript, hasTranscript: !!transcript,
+      level: prefs.level, minutes: Number(prefs.minutes),
+      createdAt: Date.now(), data, progress: {},
+    };
+    saveItem(item);
+    openItem(item);
+  } catch (err) {
+    show("home");
+    if (err?.name === "AbortError" || /abort/i.test(err?.message || "")) return;
+    homeError(friendlyError(err));
+  } finally { abortCtl = null; }
+};
+$("#cancelBtn").onclick = () => { abortCtl?.abort(); show("home"); };
+
+function friendlyError(err) {
+  const s = err?.status;
+  if (s === 401) return "API 키가 올바르지 않아요. 'API 키'에서 다시 확인해 주세요.";
+  if (s === 429) return "요청이 많아 잠시 막혔어요. 1분쯤 뒤에 다시 시도해 주세요.";
+  if (s === 400) return "요청이 거부됐어요: " + (err?.error?.error?.message || err.message);
+  if (s >= 500) return "Claude 서버에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.";
+  if (err instanceof SyntaxError) return "결과를 읽지 못했어요. 한 번 더 시도해 주세요.";
+  return err?.message || String(err);
+}
+
+/* ---------- 보관함 ---------- */
+function library() { return store.get(LS.lib, []); }
+function saveItem(item) {
+  if (item.demo) return;
+  const lib = library().filter((x) => x.id !== item.id);
+  lib.unshift(item);
+  store.set(LS.lib, lib.slice(0, 30));
+}
+function renderLibrary() {
+  const lib = library();
+  $("#libSection").classList.toggle("hide", !lib.length);
+  const box = $("#lib"); box.replaceChildren();
+  for (const it of lib) {
+    const thumb = it.videoId ? el("img", { src: `https://i.ytimg.com/vi/${it.videoId}/mqdefault.jpg`, alt: "", loading: "lazy" }) : el("img", { alt: "" });
+    const score = it.progress?.quizScore != null ? ` · 퀴즈 ${it.progress.quizScore}/${it.data.quiz.length}` : "";
+    const del = el("button", { class: "lib-del", "aria-label": "삭제", text: "✕", onclick: (e) => {
+      e.stopPropagation();
+      store.set(LS.lib, library().filter((x) => x.id !== it.id)); renderLibrary();
+    } });
+    box.append(el("div", { class: "lib-item", role: "button", tabindex: "0", onclick: () => openItem(it), onkeydown: (e) => { if (e.key === "Enter") openItem(it); } },
+      thumb,
+      el("div", {}, el("div", { class: "t", text: it.data.title }), el("div", { class: "d", text: new Date(it.createdAt).toLocaleDateString("ko-KR") + score })),
+      del));
+  }
+}
+
+/* ---------- 결과 렌더링 ---------- */
+let cur = null;
+function persist() { if (cur && !cur.demo) saveItem(cur); }
+
+function openItem(item) {
+  cur = item;
+  const d = item.data;
+  setPlayer(item.videoId);
+  $("#rTitle").textContent = d.title;
+  $("#rOne").textContent = d.one_liner;
+  const b = $("#badges"); b.replaceChildren(
+    el("span", { class: "badge accent", text: d.difficulty }),
+    el("span", { class: "badge", text: `학습 약 ${d.estimated_minutes}분` }),
+    el("span", { class: "badge", text: `내 수준 ${item.level}` }),
+  );
+  if (!item.hasTranscript) b.append(el("span", { class: "badge warn", text: "스크립트 없이 분석됨" }));
+  if (item.demo) b.append(el("span", { class: "badge warn", text: "예시" }));
+
+  renderSummary(d); renderConcepts(d); renderPath(); renderFlashcards(true); renderQuiz(); renderTutor(); renderRelated(d);
+  selectTab("sum");
+  show("result");
+}
+
+function selectTab(name) {
+  for (const t of $$("#tabs button")) t.setAttribute("aria-selected", String(t.dataset.tab === name));
+  for (const p of $$(".panel")) p.classList.toggle("on", p.dataset.panel === name);
+}
+$("#tabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (b) selectTab(b.dataset.tab); });
+
+function renderSummary(d) {
+  $("#sumList").replaceChildren(...d.summary.map((s) => el("li", { text: s })));
+  const list = $("#chapList"); list.replaceChildren();
+  let anyTime = false;
+  for (const c of d.chapters) {
+    const sec = toSeconds(c.time);
+    const clickable = sec != null && cur.videoId;
+    if (clickable) anyTime = true;
+    list.append(el(clickable ? "button" : "div", { class: "chap" + (clickable ? " click" : ""), onclick: clickable ? () => { setPlayer(cur.videoId, sec, true); window.scrollTo({ top: 0, behavior: "smooth" }); } : null },
+      el("span", { class: "time", text: c.time || "—" }),
+      el("div", {}, el("b", { text: c.title }), el("div", { class: "gist", text: c.gist }))));
+  }
+  $("#chapHint").textContent = anyTime ? "누르면 그 장면부터 재생돼요" : "";
+  const cv = $("#caveats"); cv.replaceChildren();
+  if (d.caveats?.length) cv.append(el("div", { class: "caveat" }, el("b", { text: "주의해서 볼 부분" }), el("ul", { class: "points" }, ...d.caveats.map((c) => el("li", { text: c })))));
+}
+
+function renderConcepts(d) {
+  $("#conList").replaceChildren(...d.concepts.map((c) => el("div", { class: "card concept" },
+    el("h3", { text: c.term }), el("div", { text: c.explanation }),
+    c.analogy ? el("div", { class: "ana", text: "비유: " + c.analogy }) : null)));
+}
+
+function renderPath() {
+  const steps = cur.data.lesson_path;
+  const done = (cur.progress.steps ||= []);
+  const total = steps.reduce((a, s) => a + (s.minutes || 0), 0);
+  const upd = () => {
+    const n = done.filter(Boolean).length;
+    $("#pathBar").style.width = (steps.length ? (n / steps.length) * 100 : 0) + "%";
+    $("#pathMeta").textContent = `${steps.length}단계 · 약 ${total}분 · ${n}단계 완료`;
+  };
+  const list = $("#pathList"); list.replaceChildren();
+  steps.forEach((s, i) => {
+    const node = el("div", { class: "step" + (done[i] ? " done" : "") + (i === done.filter(Boolean).length ? " open" : "") });
+    const check = el("div", { class: "check" },
+      el("div", { class: "q", text: "확인 질문 · " + s.check_question }),
+      el("div", { class: "faint", style: "margin-top:4px", text: "답을 먼저 머릿속으로 말해 본 뒤 확인하세요." }),
+      el("div", { class: "a", text: s.check_answer }));
+    const finish = el("button", { class: "btn sm primary", text: done[i] ? "완료됨" : "이 단계 완료", onclick: () => {
+      done[i] = true; node.classList.add("done"); finish.textContent = "완료됨"; node.classList.remove("open");
+      list.children[i + 1]?.classList.add("open"); upd(); persist();
+    } });
+    node.append(
+      el("button", { class: "step-h", onclick: () => node.classList.toggle("open") },
+        el("span", { class: "step-n", text: String(i + 1) }), el("b", { text: s.step_title }), el("span", { class: "m", text: `${s.minutes}분` })),
+      el("div", { class: "step-b" }, el("div", { class: "lesson", text: s.content }), check,
+        el("div", { class: "actions", style: "margin-top:12px" },
+          el("button", { class: "btn sm", text: "답 보기", onclick: () => check.classList.add("show") }), finish)));
+    list.append(node);
+  });
+  upd();
+}
+
+/* 플래시카드: 모르는 카드만 다시 돌리는 간단한 반복 */
+let fc = null;
+function renderFlashcards(reset) {
+  const cards = cur.data.flashcards;
+  if (reset || !fc) fc = { queue: cards.map((_, i) => i), known: 0, again: 0, round: 1, missed: [] };
+  const box = $("#fcBox"); box.replaceChildren();
+  if (!cards.length) { box.append(el("p", { class: "muted", text: "카드가 없어요." })); return; }
+  if (!fc.queue.length) {
+    if (fc.missed.length) {
+      box.append(el("div", { class: "fc-done" },
+        el("h2", { style: "font-size:18px", text: `${fc.round}회차 끝! 다시 볼 카드 ${fc.missed.length}장` }),
+        el("p", { class: "muted", text: "헷갈렸던 카드만 한 번 더 볼까요?" }),
+        el("div", { class: "actions", style: "justify-content:center" },
+          el("button", { class: "btn primary", text: "모르는 카드 다시", onclick: () => { fc.queue = fc.missed; fc.missed = []; fc.round++; renderFlashcards(); } }),
+          el("button", { class: "btn", text: "처음부터", onclick: () => renderFlashcards(true) }))));
+    } else {
+      box.append(el("div", { class: "fc-done" },
+        el("h2", { style: "font-size:18px", text: "모든 카드를 외웠어요 🎉" }),
+        el("p", { class: "muted", text: `${fc.round}회차 만에 ${cards.length}장 완료` }),
+        el("button", { class: "btn", text: "처음부터 다시", onclick: () => renderFlashcards(true) })));
+    }
+    return;
+  }
+  const idx = fc.queue[0];
+  const c = cards[idx];
+  const card = el("div", { class: "fc", role: "button", tabindex: "0", "aria-label": "카드 뒤집기" },
+    el("div", { class: "fc-in" },
+      el("div", { class: "fc-face" }, el("small", { text: "앞면" }), el("div", { text: c.front })),
+      el("div", { class: "fc-face back" }, el("small", { text: "뒷면" }), el("div", { text: c.back }))));
+  const flip = () => card.classList.toggle("flip");
+  card.onclick = flip;
+  card.onkeydown = (e) => { if (e.key === " " || e.key === "Enter") { e.preventDefault(); flip(); } };
+  const next = (ok) => { fc.queue.shift(); if (ok) fc.known++; else { fc.again++; fc.missed.push(idx); } renderFlashcards(); };
+  box.append(
+    el("div", { class: "fc-stats" },
+      el("span", { text: `${fc.round}회차 · 남은 카드 ${fc.queue.length}` }),
+      el("span", { text: `알아요 ${fc.known}` }), el("span", { text: `다시 ${fc.again}` })),
+    card,
+    el("div", { class: "actions", style: "justify-content:center" },
+      el("button", { class: "btn", text: "다시 볼래요", onclick: () => next(false) }),
+      el("button", { class: "btn primary", text: "알아요", onclick: () => next(true) })),
+    el("p", { class: "faint", style: "margin-top:10px", text: "카드를 누르면 뒤집혀요" }));
+}
+
+function renderQuiz() {
+  const qs = cur.data.quiz;
+  const ans = (cur.progress.quiz ||= {});
+  const box = $("#quizBox"); box.replaceChildren();
+  const scoreBox = el("div", { class: "score hide" });
+  box.append(scoreBox);
+  const updScore = () => {
+    const n = Object.keys(ans).length;
+    if (n < qs.length) { scoreBox.classList.add("hide"); return; }
+    const right = qs.filter((q, i) => ans[i] === q.answer_index).length;
+    cur.progress.quizScore = right; persist();
+    scoreBox.classList.remove("hide");
+    scoreBox.replaceChildren(el("span", { class: "big", text: `${right}/${qs.length}` }),
+      el("div", {}, el("b", { text: right === qs.length ? "만점이에요!" : right >= qs.length * 0.7 ? "잘 이해했어요" : "핵심 개념을 한 번 더 볼까요?" }),
+        el("div", { class: "faint", text: "틀린 문제의 해설과 '핵심 개념' 탭을 다시 보면 좋아요." })),
+      el("button", { class: "btn sm", style: "margin-left:auto", text: "다시 풀기", onclick: () => { cur.progress.quiz = {}; delete cur.progress.quizScore; persist(); renderQuiz(); } }));
+  };
+  qs.forEach((q, i) => {
+    const wrap = el("div", { class: "card qz" }, el("div", { class: "qq", text: `Q${i + 1}. ${q.question}` }));
+    const btns = q.choices.map((ch, j) => el("button", { class: "choice", text: `${"ABCD"[j] || j + 1}. ${ch}` }));
+    const expl = el("div", { class: "expl hide" });
+    const reveal = (pick) => {
+      btns.forEach((b, j) => { b.disabled = true; if (j === q.answer_index) b.classList.add("right"); else if (j === pick) b.classList.add("wrong"); });
+      expl.textContent = (pick === q.answer_index ? "정답! " : "오답 · ") + q.explanation;
+      expl.classList.remove("hide");
+    };
+    btns.forEach((b, j) => b.onclick = () => { ans[i] = j; reveal(j); updScore(); persist(); });
+    if (ans[i] != null) reveal(ans[i]);
+    wrap.append(...btns, expl);
+    box.append(wrap);
+  });
+  updScore();
+}
+
+/* AI 튜터 */
+let chatHistory = [];
+function renderTutor() {
+  chatHistory = cur.chat ? [...cur.chat] : [];
+  const chat = $("#chat"); chat.replaceChildren();
+  if (!chatHistory.length) chat.append(el("div", { class: "msg a", text: "이 영상에 대해 궁금한 걸 물어보세요. 이해가 안 되는 부분, 예시, 실제 적용 방법 모두 좋아요." }));
+  for (const m of chatHistory) chat.append(el("div", { class: "msg " + (m.role === "user" ? "u" : "a"), text: m.content }));
+  const sugg = ["가장 중요한 내용 3가지만 다시 설명해 줘", "초등학생에게 설명하듯 말해 줘", "이걸 실생활에 어떻게 써먹을 수 있어?", `${cur.data.concepts[0]?.term || "핵심 개념"}을(를) 예시로 설명해 줘`];
+  $("#chips").replaceChildren(...sugg.map((s) => el("button", { class: "chip", type: "button", text: s, onclick: () => ask(s) })));
+  $("#tutorNote").textContent = cur.demo ? "예시 모드에서는 API 키를 저장하면 튜터를 쓸 수 있어요." : "";
+}
+$("#askForm").onsubmit = (e) => { e.preventDefault(); const v = $("#askInput").value.trim(); if (v) ask(v); };
+let asking = false;
+async function ask(q) {
+  if (asking) return;
+  const chat = $("#chat");
+  $("#askInput").value = "";
+  chat.append(el("div", { class: "msg u", text: q }));
+  const out = el("div", { class: "msg a", text: "생각 중…" });
+  chat.append(out);
+  asking = true; $("#askBtn").disabled = true;
+  chatHistory.push({ role: "user", content: q });
+  try {
+    const { client } = await getClient();
+    const d = cur.data;
+    const context = cur.transcript
+      ? `<transcript>\n${cur.transcript}\n</transcript>`
+      : `<analysis>\n${JSON.stringify({ title: d.title, summary: d.summary, chapters: d.chapters, concepts: d.concepts })}\n</analysis>`;
+    const system = [
+      { type: "text", text: `당신은 친절한 1:1 튜터입니다. 학습자는 아래 유튜브 영상을 공부하고 있습니다 (수준: ${cur.level}).
+영상 내용을 근거로 한국어로 답하세요. 짧고 명확하게, 필요하면 예시를 드세요. 마크다운 기호(#, ** 등)는 쓰지 말고 평범한 문장과 줄바꿈으로 씁니다.
+영상에 없는 내용을 보충할 때는 "영상 밖 내용이지만"이라고 밝힙니다. 해당 시점이 있으면 타임스탬프를 알려 주세요.
+
+영상 제목: ${d.title}
+${context}`, cache_control: { type: "ephemeral" } },
+    ];
+    const stream = client.beta.messages.stream({
+      model: MODEL, max_tokens: 8000,
+      betas: ["server-side-fallback-2026-07-01"], fallbacks: "default",
+      thinking: { type: "adaptive" }, output_config: { effort: "low" },
+      system, messages: chatHistory,
+    });
+    let acc = "";
+    stream.on("text", (t) => { acc += t; out.textContent = acc; });
+    const msg = await stream.finalMessage();
+    if (msg.stop_reason === "refusal") acc = acc || "이 질문에는 답하기 어려워요. 다른 방식으로 물어봐 주세요.";
+    out.textContent = acc;
+    chatHistory.push({ role: "assistant", content: acc });
+    if (!cur.demo) { cur.chat = chatHistory.slice(-20); persist(); }
+  } catch (err) {
+    chatHistory.pop();
+    out.textContent = friendlyError(err);
+  } finally { asking = false; $("#askBtn").disabled = false; }
+}
+
+function renderRelated(d) {
+  $("#relList").replaceChildren(...d.related.map((r) => el("div", { class: "card rel" },
+    el("h3", { text: r.topic }), el("p", { text: r.why }),
+    el("a", { href: "https://www.youtube.com/results?search_query=" + encodeURIComponent(r.search_query), target: "_blank", rel: "noopener", text: `유튜브에서 "${r.search_query}" 검색 →` }))));
+}
+
+/* ---------- 예시 데이터 ---------- */
+const DEMO = {
+  demo: true, id: "demo", videoId: null, url: "", transcript: "", hasTranscript: true, level: "입문", minutes: 15, createdAt: Date.now(), progress: {},
+  data: {
+    title: "복리의 마법: 왜 일찍 시작할수록 유리한가",
+    one_liner: "이자에 이자가 붙는 복리는 시간이 길수록 폭발적으로 커지므로, 금액보다 '시작 시점'이 더 중요하다.",
+    difficulty: "입문", estimated_minutes: 15,
+    summary: [
+      "단리는 원금에만 이자가 붙고, 복리는 이자에도 이자가 붙는다.",
+      "복리의 성장은 초반엔 느리지만 시간이 지날수록 곡선이 가파르게 올라간다.",
+      "72의 법칙: 72를 연 수익률(%)로 나누면 돈이 두 배가 되는 대략적인 기간이 나온다.",
+      "10년 일찍 시작한 사람이 더 적게 넣고도 더 많이 모을 수 있다.",
+      "수수료와 인플레이션도 복리로 작용하므로 '보이지 않는 마이너스 복리'를 조심해야 한다.",
+    ],
+    chapters: [
+      { time: "0:00", title: "들어가며", gist: "같은 돈을 넣었는데 결과가 두 배 차이 나는 두 친구 이야기" },
+      { time: "1:40", title: "단리 vs 복리", gist: "100만 원을 연 10%로 30년 굴렸을 때의 차이" },
+      { time: "4:15", title: "72의 법칙", gist: "머릿속으로 두 배 기간을 계산하는 법" },
+      { time: "7:30", title: "시간이 가장 큰 변수", gist: "25세 시작 vs 35세 시작 시뮬레이션" },
+      { time: "10:05", title: "마이너스 복리", gist: "수수료 1%가 30년 뒤 만드는 차이" },
+    ],
+    concepts: [
+      { term: "단리 (Simple Interest)", explanation: "처음 넣은 원금에만 이자가 붙는 방식. 매년 같은 금액의 이자가 생긴다.", analogy: "매년 같은 크기의 벽돌을 하나씩 쌓는 것" },
+      { term: "복리 (Compound Interest)", explanation: "원금과 그동안 쌓인 이자를 합친 금액에 다시 이자가 붙는 방식.", analogy: "눈덩이를 굴리면 커질수록 한 바퀴에 붙는 눈도 많아지는 것" },
+      { term: "72의 법칙", explanation: "72 ÷ 연 수익률(%) ≈ 원금이 두 배가 되는 햇수. 연 6%면 약 12년.", analogy: "복잡한 계산기를 대신하는 암산 공식" },
+      { term: "인플레이션", explanation: "물가가 오르면서 같은 돈으로 살 수 있는 것이 줄어드는 현상. 돈의 가치를 복리로 깎는다.", analogy: "조금씩 새는 물통" },
+      { term: "실질 수익률", explanation: "명목 수익률에서 물가상승률을 뺀 값. 실제로 늘어난 구매력을 보여 준다.", analogy: "월급 인상률에서 물가 인상률을 뺀 '진짜 인상'" },
+    ],
+    lesson_path: [
+      { step_title: "단리와 복리 구분하기", minutes: 3, content: "100만 원을 연 10%로 맡긴다고 해 봅시다.\n\n단리라면 매년 10만 원씩, 30년 동안 300만 원의 이자가 생겨 총 400만 원이 됩니다.\n\n복리라면 첫해 10만 원, 둘째 해에는 110만 원의 10%인 11만 원… 이렇게 이자가 이자를 낳아 30년 뒤에는 약 1,745만 원이 됩니다.\n\n같은 원금, 같은 이율인데 4배 넘게 차이가 나는 이유는 '이자가 다시 원금이 되기' 때문입니다.", check_question: "복리가 단리보다 커지는 이유를 한 문장으로 말해 보세요.", check_answer: "이자가 원금에 더해져 다음 해에는 더 큰 금액에 이자가 붙기 때문이다." },
+      { step_title: "72의 법칙으로 암산하기", minutes: 3, content: "복리 계산은 복잡하지만, 72의 법칙을 쓰면 대략적인 감을 잡을 수 있어요.\n\n연 수익률이 8%라면 72 ÷ 8 = 9, 즉 약 9년마다 돈이 두 배가 됩니다.\n\n반대로 '10년 안에 두 배'를 원한다면 72 ÷ 10 = 7.2%의 수익률이 필요하다는 것도 알 수 있죠.\n\n(영상 밖 내용이지만) 이 법칙은 수익률이 대략 4~12%일 때 가장 잘 맞습니다.", check_question: "연 4% 예금에 넣으면 대략 몇 년 뒤 두 배가 될까요?", check_answer: "72 ÷ 4 = 18, 약 18년." },
+      { step_title: "시간이 금액을 이긴다", minutes: 5, content: "A는 25세부터 10년 동안만 매년 200만 원을 넣고 멈췄습니다. B는 35세부터 30년 동안 매년 200만 원을 넣었습니다. 연 7%라고 할 때, 65세에 누가 더 많을까요?\n\nA는 2,000만 원만 넣었고 B는 6,000만 원을 넣었지만, 결과는 A가 더 많거나 비슷합니다. A의 돈은 굴러갈 시간이 훨씬 길었기 때문이에요.\n\n복리에서는 '얼마나 많이'보다 '얼마나 오래'가 더 큰 변수입니다.", check_question: "A가 B보다 적게 넣고도 더 많이 모을 수 있었던 이유는?", check_answer: "먼저 시작해서 복리가 작동한 기간이 더 길었기 때문이다." },
+      { step_title: "마이너스 복리 피하기", minutes: 4, content: "복리는 수익에만 작용하지 않습니다. 매년 떼이는 수수료, 물가 상승도 복리로 쌓여요.\n\n연 1% 수수료 차이는 작아 보이지만, 30년이면 최종 금액이 약 25% 가까이 줄어들 수 있습니다.\n\n그래서 장기 투자에서는 수익률만큼이나 낮은 비용과 물가를 이기는 실질 수익률이 중요합니다.", check_question: "수수료 1%가 장기적으로 크게 느껴지는 이유는?", check_answer: "수수료도 매년 복리처럼 누적되어, 시간이 길수록 차이가 기하급수적으로 커지기 때문이다." },
+    ],
+    flashcards: [
+      { front: "단리란?", back: "원금에만 이자가 붙는 방식" },
+      { front: "복리란?", back: "원금 + 쌓인 이자에 다시 이자가 붙는 방식" },
+      { front: "72의 법칙 공식", back: "72 ÷ 연 수익률(%) ≈ 두 배가 되는 햇수" },
+      { front: "연 6%면 두 배까지 약 몇 년?", back: "약 12년" },
+      { front: "복리에서 가장 큰 변수", back: "시간 (얼마나 오래 굴리는가)" },
+      { front: "마이너스 복리의 예", back: "수수료, 인플레이션" },
+      { front: "실질 수익률", back: "명목 수익률 − 물가상승률" },
+      { front: "100만 원, 연 10%, 30년 복리 결과", back: "약 1,745만 원" },
+    ],
+    quiz: [
+      { question: "복리가 단리보다 장기적으로 훨씬 커지는 가장 근본적인 이유는?", choices: ["이율이 더 높아서", "이자가 다시 원금에 포함되어서", "세금이 없어서", "원금이 매년 자동으로 늘어나서"], answer_index: 1, explanation: "복리의 핵심은 발생한 이자가 원금에 합쳐져 다음 이자 계산의 기준이 커진다는 점이에요." },
+      { question: "연 9% 수익률이면 원금이 두 배가 되는 기간은 약?", choices: ["6년", "12년", "8년", "18년"], answer_index: 2, explanation: "72 ÷ 9 = 8, 약 8년입니다." },
+      { question: "다음 중 복리 효과를 가장 크게 누리는 방법은?", choices: ["큰돈이 모이면 한 번에 시작한다", "수익이 나면 바로 찾아 쓴다", "적은 금액이라도 일찍 시작해 오래 유지한다", "매년 상품을 바꿔 가며 투자한다"], answer_index: 2, explanation: "복리는 시간이 길수록 강해지므로 '일찍, 오래'가 가장 중요해요." },
+      { question: "명목 수익률 5%, 물가상승률 3%일 때 실질 수익률은 대략?", choices: ["8%", "2%", "5%", "15%"], answer_index: 1, explanation: "실질 수익률 ≈ 5% − 3% = 2%." },
+      { question: "'마이너스 복리'로 작용하는 것은?", choices: ["배당 재투자", "적립식 투자", "연간 운용 수수료", "이자 재투자"], answer_index: 2, explanation: "매년 떼이는 수수료는 복리처럼 누적되어 최종 금액을 크게 줄입니다." },
+    ],
+    related: [
+      { topic: "인덱스 펀드와 ETF", why: "낮은 수수료로 장기 복리를 누리는 대표적인 방법이에요.", search_query: "인덱스펀드 ETF 초보 설명" },
+      { topic: "적립식 투자 (DCA)", why: "매달 일정 금액을 넣는 방식이 복리와 어떻게 결합되는지 알 수 있어요.", search_query: "적립식 투자 원리" },
+      { topic: "인플레이션과 실질 금리", why: "돈의 '진짜 가치'를 판단하는 기준이 됩니다.", search_query: "인플레이션 실질금리 쉽게" },
+      { topic: "지수 함수와 로그", why: "복리 곡선과 72의 법칙의 수학적 원리를 이해할 수 있어요.", search_query: "지수함수 로그 복리 원리" },
+    ],
+    caveats: ["예시 수익률(연 7~10%)은 보장된 값이 아니며 실제 투자 수익률은 해마다 크게 달라질 수 있어요."],
+  },
+};
+$("#demoBtn").onclick = () => { const d = structuredClone(DEMO); d.createdAt = Date.now(); openItem(d); };
+
+renderLibrary();
+</script>
+</body>
+</html>
