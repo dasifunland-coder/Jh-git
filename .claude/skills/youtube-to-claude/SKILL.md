@@ -11,9 +11,9 @@ API 키 없이 Claude Code 안에서 동작하는 버전이다. 자막 추출은
 
 1. 자막 추출 (의존성이 없으면 먼저 `pip install youtube-transcript-api`):
    ```bash
-   python yt2claude/yt2claude.py "<URL>" --transcript-only --out output
+   python <이 스킬 폴더>/scripts/yt2claude.py "<URL>" --transcript-only --out output
    ```
-   `output/<영상 제목>/transcript.md` 가 생긴다. 실패하면(자막 없음, 비공개 영상 등) 이유를 사용자에게 알리고 멈춘다.
+   `<이 스킬 폴더>`는 이 SKILL.md가 있는 폴더다. `output/<영상 제목>/transcript.md` 가 생긴다. 실패하면(자막 없음, 비공개 영상 등) 이유를 사용자에게 알리고 멈춘다.
 
 2. `transcript.md`를 끝까지 읽는다. 길어도 잘라 읽지 말고 나눠서 전부 읽는다.
 
