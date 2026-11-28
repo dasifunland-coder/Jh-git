@@ -1,0 +1,18 @@
+{
+    "name": "HordeParty.Editor",
+    "rootNamespace": "HordeParty.EditorTools",
+    "references": [
+        "HordeParty.Runtime"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
